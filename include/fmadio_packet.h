@@ -16,7 +16,7 @@
 #define FMADRING_ENTRYSIZE		(10*1024)			// total size header and payload of each packet 
 #define FMADRING_ENTRYCNT		(1024)				// number of entries in the ring 
 
-#define FMADRING_FLAG_EOF			(1<<0)			// end of file exit
+#define FMADRING_FLAG_EOF		(1<<0)			// end of file exit
 
 typedef struct
 {
@@ -232,6 +232,8 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 	FPkt->Port				= 0; 
 	memcpy(&FPkt->Payload[0], Payload, LengthCapture);
 
+	__asm__ volatile ("sfence")
+
 	// publish 
 	RING->Put 				+= 1;
 
@@ -273,6 +275,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	if (pPort)			pPort[0]			= Pkt->Port;
 	if (Payload)		memcpy(Payload, Pkt->Payload, Pkt->LengthCapture);
 
+	__asm__ volatile ("sfence")
 
 	// next
 	RING->Get += 1;
