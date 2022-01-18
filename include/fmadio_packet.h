@@ -288,3 +288,6 @@ static inline void FMADPacket_RecvV1_Complete(	fFMADRingHeader_t* 	RING)
 
 
 #endif
+
+// vim:sw=4:ts=4
+
