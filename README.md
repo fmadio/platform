@@ -15,7 +15,6 @@ FMADIO platform integration code
 
 3-clause license ("Modified BSD License")
 
-see LICENSE.md for details
-[link](https://github.com/fmadio/platform/blob/main/LICENSE.md)
+see [LICENSE.md](https://github.com/fmadio/platform/blob/main/LICENSE.md) for details 
 
 
