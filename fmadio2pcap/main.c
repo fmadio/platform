@@ -4,6 +4,8 @@
 //
 // LICENSE: refer to https://github.com/fmadio/platform/blob/main/LICENSE.md
 //
+// Minimial example to convert FMADIO Packet ring buffer to a standard PCAP. 
+//
 //-------------------------------------------------------------------------------------------------------------------
 
 #include <stdio.h>
