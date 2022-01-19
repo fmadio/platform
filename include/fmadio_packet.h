@@ -2,12 +2,83 @@
 //
 // Copyright (c) 2021-2022, fmad engineering group 
 //
-// PRIVATE AND CONFIDENTIAL DO NOT DISTRIBUTE
+// LICENSE: refer to https://github.com/fmadio/platform/license
 //
 //-------------------------------------------------------------------------------------------------------------------
 
 #ifndef  __FMADIO_PACKET_H__
 #define  __FMADIO_PACKET_H__
+
+//---------------------------------------------------------------------------------------------
+
+#ifndef __cplusplus
+
+typedef unsigned char		bool;
+#define false				0
+#define true				1
+
+#endif
+
+typedef unsigned char		u8;
+typedef char				s8;
+
+typedef unsigned short		u16;
+typedef short				s16;
+
+typedef unsigned int 		u32;
+typedef int					s32;
+
+typedef unsigned long long	u64;
+typedef long long			s64;
+
+//---------------------------------------------------------------------------------------------
+
+static inline volatile u64 rdtsc(void)
+{
+	u32 hi, lo;
+	__asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi) );
+	return (((u64)hi)<<32ULL) | (u64)lo;
+}
+
+
+static inline void sfence(void)
+{
+	__asm__ volatile("sfence");
+}
+
+static inline void mfence(void)
+{
+	__asm__ volatile("mfence");
+}
+
+static inline void lfence(void)
+{
+	__asm__ volatile("lfence");
+}
+
+// not great but dont need to calibrate or have any external dependencies
+static inline u64 ns2tsc(u64 ns)
+{
+	return ns * 2;		// assume a 2Ghz cpu
+}
+static inline u64 tsc2ns(u64 tsc)
+{
+	return tsc / 2;		// assume a 2Ghz cpu
+}
+
+
+static void ndelay(u64 ns)
+{
+	u64 NextTS = rdtsc() + ns2tsc(ns);
+	while (rdtsc() < NextTS)
+	{
+		__asm__ volatile("pause");
+		__asm__ volatile("pause");
+		__asm__ volatile("pause");
+		__asm__ volatile("pause");
+	}
+}
+
 
 //---------------------------------------------------------------------------------------------
 
@@ -216,8 +287,8 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 
 		usleep(0);
 
-		u64 dT= tsc2ns(rdtsc() - TS0);
-		if (dT > RING->TxTimeout)
+		u64 dTSC = (rdtsc() - TS0);
+		if (tsc2ns(dTSC) > RING->TxTimeout)
 		{
 			fprintf(stderr, "ERROR: RING wait for drain timeout\n");
 			return -1;
@@ -232,7 +303,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 	FPkt->Port				= 0; 
 	memcpy(&FPkt->Payload[0], Payload, LengthCapture);
 
-	__asm__ volatile ("sfence")
+	sfence();
 
 	// publish 
 	RING->Put 				+= 1;
@@ -256,7 +327,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	{
 		if (RING->Put != RING->Get)
 		{
-			if (RING->Put< RING->Get) break;
+			if (RING->Put < RING->Get) break;
 
 			Pkt = &RING->Packet[ RING->Get & RING->Mask ]; 
 			break;
@@ -275,7 +346,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	if (pPort)			pPort[0]			= Pkt->Port;
 	if (Payload)		memcpy(Payload, Pkt->Payload, Pkt->LengthCapture);
 
-	__asm__ volatile ("sfence")
+	sfence();
 
 	// next
 	RING->Get += 1;
@@ -283,12 +354,44 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	return Pkt->LengthCapture;
 }
 
-// consume the packet 
-static inline void FMADPacket_RecvV1_Complete(	fFMADRingHeader_t* 	RING)
+//---------------------------------------------------------------------------------------------
+// common pcap fields 
+
+// pcap headers
+#define PCAPHEADER_MAGIC_NANO       0xa1b23c4d
+#define PCAPHEADER_MAGIC_USEC       0xa1b2c3d4
+#define PCAPHEADER_MAGIC_FMAD       0x1337bab3      // chunked FMAD packets
+#define PCAPHEADER_MAGIC_FMADRING   0x1337bab7      // shm ring buffer interface
+#define PCAPHEADER_MAJOR            2
+#define PCAPHEADER_MINOR            4
+#define PCAPHEADER_LINK_ETHERNET    1
+#define PCAPHEADER_LINK_ERF         197
+
+typedef struct
 {
-}
+    u32             Magic;
+    u16             Major;
+    u16             Minor;
+    u32             TimeZone;
+    u32             SigFlag;
+    u32             SnapLen;
+    u32             Link;
 
+} __attribute__((packed)) PCAPHeader_t;
 
+typedef struct PCAPPacket_t
+{
+    u32             Sec;                    // time stamp sec since epoch
+    u32             NSec;                   // nsec fraction since epoch
+
+    u32             LengthCapture;          // captured length, inc trailing / aligned data
+    u32             LengthWire;             // [14:0]  length on the wire
+                                            // [15]    port number
+                                            // [31:16] reserved
+
+} __attribute__((packed)) PCAPPacket_t;
+
+//---------------------------------------------------------------------------------------------
 
 #endif
 
