@@ -4,10 +4,12 @@
 
 Stock centos container image
 
-[CentOS 7.9 Base](https://fmad.io/download/lxc/20220119_lxc_centos7.9.tar.gz)
+[CentOS 7.9 Base v1.0](https://fmad.io/download/lxc/20220119_lxc_centos7.9.tar.gz)
 
 MD5     : 0525ee54f30dab29af296e8e104d69c4
+
 UserName: fmadio
+
 Network : Bridged DHCP 
 
 

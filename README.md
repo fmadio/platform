@@ -12,6 +12,16 @@ FMADIO platform integration code
 
 Simple reference implementation of FMADIO Ring buffer packet Rx outputing in standard nanosecond PCAP format. Its goal is show the minimum required work to receive packets from ther FMADIO device while running inside an LXC container. 
 
+# Container
+
+Reference container information is provided, this provided a fast way to get up and running. 
+
+Currently Supporting:
+
+- CentOS 7.9 
+
+
+see [CONTAINER.md](https://github.com/fmadio/platform/blob/main/CONTAINER.md) for details 
 
 # License
 
