@@ -9,6 +9,6 @@ FMADIO public platform integration
 3-clause license ("Modified BSD License"))
 
 see LICENSE.md for details
-[link](https://github.com/fmadio/platform/LICENSE.md)
+[link](https://github.com/fmadio/platform/blob/main/LICENSE.md)
 
 
