@@ -2,7 +2,7 @@
 //
 // Copyright (c) 2021-2022, fmad engineering group 
 //
-// LICENSE: refer to https://github.com/fmadio/platform/license
+// LICENSE: refer to https://github.com/fmadio/platform/blob/main/LICENSE.md
 //
 //-------------------------------------------------------------------------------------------------------------------
 
