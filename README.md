@@ -30,7 +30,7 @@ see [CONTAINER.md](https://github.com/fmadio/platform/blob/main/CONTAINER.md) fo
 
 # License
 
-3-clause license ("Modified BSD License")
+Modified BSD License
 
 see [LICENSE.md](https://github.com/fmadio/platform/blob/main/LICENSE.md) for details 
 
