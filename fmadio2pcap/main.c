@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
 
 	if (!s_IsRING)
 	{
-		fprintf(stderr, "specify ring interface with --ring <path to ring file>\n");
+		fprintf(stderr, "specify ring interface with -i <path to ring file>\n");
 		return 0;
 	}
 
