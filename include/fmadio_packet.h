@@ -162,7 +162,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
 
 	// check version
-	fprintf(stderr, "Ring size   : %lli %i\n", sizeof(fFMADRingHeader_t), FMADRING_MAPSIZE);
+	fprintf(stderr, "Ring size   : %li %i\n", sizeof(fFMADRingHeader_t), FMADRING_MAPSIZE);
 	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
 
 	// version wrong then force reset
@@ -239,7 +239,7 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
 
 	// check version
-	fprintf(stderr, "Ring size   : %lli %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
+	fprintf(stderr, "Ring size   : %li %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
 	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
 
 	// version wrong then force reset
