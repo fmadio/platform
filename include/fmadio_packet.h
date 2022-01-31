@@ -162,7 +162,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
 
 	// check version
-	fprintf(stderr, "Ring size   : %i %i\n", sizeof(fFMADRingHeader_t), FMADRING_MAPSIZE);
+	fprintf(stderr, "Ring size   : %lli %i\n", sizeof(fFMADRingHeader_t), FMADRING_MAPSIZE);
 	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
 
 	// version wrong then force reset
@@ -198,8 +198,8 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	assert(RING->Depth 		== FMADRING_ENTRYCNT); 
 	assert(RING->Mask		== FMADRING_ENTRYCNT - 1); 
 
-	fprintf(stderr, "RING: Put:%llx\n", RING->Put, RING->Put & RING->Mask);
-	fprintf(stderr, "RING: Get:%llx\n", RING->Get, RING->Get & RING->Mask);
+	fprintf(stderr, "RING: Put:%llx %llx\n", RING->Put, RING->Put & RING->Mask);
+	fprintf(stderr, "RING: Get:%llx %llx\n", RING->Get, RING->Get & RING->Mask);
 
 	// settings
 	RING->IsTxFlowControl	= IsFlowControl;	
@@ -239,7 +239,7 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
 
 	// check version
-	fprintf(stderr, "Ring size   : %i %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
+	fprintf(stderr, "Ring size   : %lli %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
 	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
 
 	// version wrong then force reset
@@ -258,8 +258,8 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	//reset get point to current write pointer 
 	RING->Get = RING->Put;
 
-	fprintf(stderr, "RING: Put:%llx\n", RING->Put, RING->Put & RING->Mask);
-	fprintf(stderr, "RING: Get:%llx\n", RING->Get, RING->Get & RING->Mask);
+	fprintf(stderr, "RING: Put:%llx %llx\n", RING->Put, RING->Put & RING->Mask);
+	fprintf(stderr, "RING: Get:%llx %llx\n", RING->Get, RING->Get & RING->Mask);
 
 	// update files
 	if (pfd) 	pfd[0] 		= fd;
