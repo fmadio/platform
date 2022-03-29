@@ -1,6 +1,6 @@
 //---------------------------------------------------------------------------------------------
 //
-// Copyright (c) 2022, fmad engineering llc
+// Copyright (c) 2021, fmad engineering llc
 //
 // The MIT License (MIT) see LICENSE file for details
 //
@@ -32,6 +32,76 @@ u64 output_sample_time = 1 * S_TO_NS;
 double stat_sample_time = 1;
 
 ITCHState_t *ITCHStateList = NULL;
+
+// converts a deciable to char
+static inline u8 Num2Char(u32 Value)
+{
+	switch (Value)
+	{
+	case 0x0: return '0';
+	case 0x1: return '1';
+	case 0x2: return '2';
+	case 0x3: return '3';
+	case 0x4: return '4';
+	case 0x5: return '5';
+	case 0x6: return '6';
+	case 0x7: return '7';
+	case 0x8: return '8';
+	case 0x9: return '9';
+	}
+	return ' ';
+}
+// write a nicely formated timestamp (FormatTS but without libc)
+static inline u8* WriteTSFormat(u8* Output, double timestamp)
+{
+	// timestamp is in sec, convert to ts in nsec
+	u64 ts = timestamp * 1e9;
+
+	u64 usec	= ts   / 1000ULL;
+	u64 msec	= usec / 1000ULL;
+	u64 sec		= msec / 1000ULL;
+	u64 min		= sec  / 60ULL;
+	u64 hour	= min  / 60ULL;
+
+	u64 nsec	= ts   - usec*1000ULL;
+	usec		= usec - msec*1000ULL;
+	msec		= msec - sec*1000ULL;
+	sec			= sec  - min*60ULL;
+	min			= min  - hour*60ULL;
+
+
+	// clip hour to 24 as it contains the full epoch in hours
+	hour		= hour % 24;
+
+	*Output++	= Num2Char( hour / 10);
+	*Output++	= Num2Char( hour % 10);
+	*Output++	= ':';
+
+	*Output++	= Num2Char( min / 10);
+	*Output++	= Num2Char( min % 10);
+	*Output++	= ':';
+
+	*Output++	= Num2Char( sec / 10);
+	*Output++	= Num2Char( sec % 10);
+	*Output++	= '.';
+
+	*Output++	= Num2Char( msec / 100);
+	*Output++	= Num2Char((msec / 10)%10);
+	*Output++	= Num2Char( msec % 10 );
+	*Output++	= '.';
+
+
+	*Output++	= Num2Char( usec / 100);
+	*Output++	= Num2Char((usec / 10)%10);
+	*Output++	= Num2Char( usec % 10 );
+	*Output++	= '.';
+
+	*Output++	= Num2Char( nsec / 100);
+	*Output++	= Num2Char((nsec / 10)%10);
+	*Output++	= Num2Char( nsec % 10 );
+
+	*Output++	= 0;
+}
 
 ITCHState_t* get_itch_state(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mold, u16 vlan_id)
 {
@@ -109,12 +179,15 @@ ITCHState_t* get_itch_state(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mol
 
 void output_stats(ITCHState_t *state, double timestamp)
 {
-	fprintf(stdout, "{ \"_index\": \"stats\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\":\"%c%c%c%c%c%c%c%c%c%c\", \"timestamp\": \"%lf\", \"messageCount\": %llu, \"gapCount\": %llu",
+	u8 TStr[128];
+	WriteTSFormat(TStr, timestamp);
+
+	fprintf(stdout, "{ \"_index\": \"stats\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\":\"%c%c%c%c%c%c%c%c%c%c\", \"timestamp\": \"%lf\", \"TS\": \"%s\" \"messageCount\": %llu, \"gapCount\": %llu",
 			state->SrcIP.IP[0], state->SrcIP.IP[1], state->SrcIP.IP[2], state->SrcIP.IP[3],
 			state->DstIP.IP[0], state->DstIP.IP[1], state->DstIP.IP[2], state->DstIP.IP[3],
 			swap16(state->SrcPort), swap16(state->DstPort),
 			state->Session[0], state->Session[1], state->Session[2], state->Session[3], state->Session[4], state->Session[5], state->Session[6], state->Session[7], state->Session[8], state->Session[9],
-			timestamp, state->MessageCount, state->SeqGapCount
+			timestamp, TStr, state->MessageCount, state->SeqGapCount
 		);
 	if (g_VLANFound)
 	{
@@ -122,10 +195,6 @@ void output_stats(ITCHState_t *state, double timestamp)
 	}
 	fprintf(stdout, " }\n");
 	state->TS = timestamp;
-	// Reset SeqGapCount here? Makes more sense to report msgs/s, gaps/s this
-	// way, yeah
-	state->SeqGapCount = 0;
-	state->MessageCount = 0;
 }
 
 void output_itch_events(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mold_udp, double timestamp, u8 *payload, u16 vlan_id)
@@ -133,16 +202,19 @@ void output_itch_events(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mold_ud
 	u32 offset = 0;
 	u16 msg_cnt = swap16(mold_udp->MsgCnt);
 
+	u8 TStr[128];
+	WriteTSFormat(TStr, timestamp);
+
 	u8* event_str = "";
 	if (msg_cnt == 0xffff)
 	{
 		event_str = "EndSession";
-		fprintf(stdout, "{ \"_index\": \"events\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\":\"%c%c%c%c%c%c%c%c%c%c\", \"timestamp\": \"%lf\", \"event\": \"%s\"",
+		fprintf(stdout, "{ \"_index\": \"events\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\":\"%c%c%c%c%c%c%c%c%c%c\", \"timestamp\": \"%lf\", \"TS\": \"%s\", \"event\": \"%s\"",
 				IP4->Src.IP[0], IP4->Src.IP[1], IP4->Src.IP[2], IP4->Src.IP[3],
 				IP4->Dst.IP[0], IP4->Dst.IP[1], IP4->Dst.IP[2], IP4->Dst.IP[3],
 				swap16(UDP->PortSrc), swap16(UDP->PortDst),
 				mold_udp->Session[0], mold_udp->Session[1], mold_udp->Session[2], mold_udp->Session[3], mold_udp->Session[4], mold_udp->Session[5], mold_udp->Session[6], mold_udp->Session[7], mold_udp->Session[8], mold_udp->Session[9],
-				timestamp, event_str
+				timestamp, TStr, event_str
 			);
 		if (g_VLANFound)
 		{
@@ -175,12 +247,12 @@ void output_itch_events(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mold_ud
 			//fprintf(stderr, "[dbg] ITCH System Event %s\n", event_str);
 
 
-			fprintf(stdout, "{ \"_index\": \"events\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\":\"%c%c%c%c%c%c%c%c%c%c\", \"timestamp\": \"%lf\", \"event\": \"%s\" }\n",
+			fprintf(stdout, "{ \"_index\": \"events\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\":\"%c%c%c%c%c%c%c%c%c%c\", \"timestamp\": \"%lf\", \"TS\": \"%s\", \"event\": \"%s\" }\n",
 					IP4->Src.IP[0], IP4->Src.IP[1], IP4->Src.IP[2], IP4->Src.IP[3],
 					IP4->Dst.IP[0], IP4->Dst.IP[1], IP4->Dst.IP[2], IP4->Dst.IP[3],
 					swap16(UDP->PortSrc), swap16(UDP->PortDst),
 					mold_udp->Session[0], mold_udp->Session[1], mold_udp->Session[2], mold_udp->Session[3], mold_udp->Session[4], mold_udp->Session[5], mold_udp->Session[6], mold_udp->Session[7], mold_udp->Session[8], mold_udp->Session[9],
-					timestamp, event_str
+					timestamp, TStr, event_str
 				);
 		}
 		offset += msg_length + 2;
@@ -191,8 +263,9 @@ void process_mold_udp(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mold, dou
 {
 	ITCHState_t *state = get_itch_state(IP4, UDP, mold, vlan_id);
 	u64 SeqNo = swap64(mold->SeqNo);
+	u16 MessageCount = swap16(mold->MsgCnt);
 
-	state->MessageCount++;
+	state->MessageCount += MessageCount;
 
 	if (timestamp - state->TS >= stat_sample_time)
 	{
@@ -202,7 +275,7 @@ void process_mold_udp(IP4Header_t *IP4, UDPHeader_t *UDP, MoldUDP64_t *mold, dou
 	if (state->SeqCurrent + 1 == SeqNo)
 	{
 		// Seq number in order as expected, return early
-		state->SeqCurrent++;
+		state->SeqCurrent += MessageCount;
 		return;
 	}
 	else if (state->SeqCurrent == SeqNo)
@@ -390,13 +463,16 @@ void output_and_reset_gaps()
 			assert(gap->End > gap->Start);
 			gap_count = gap->End - gap->Start - 1;
 
-			fprintf(stdout, "{ \"_index\": \"gaps\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\": \"%c%c%c%c%c%c%c%c%c%c\", \"oooCount\": %llu, \"gapSeqStart\": %llu, \"gapSeqEnd\": %llu, \"gapCount\": %llu, \"timestamp\": \"%lf\"",
+			u8 TStr[128];
+			WriteTSFormat(TStr, gap->TS);
+
+			fprintf(stdout, "{ \"_index\": \"gaps\", \"srcIP\": \"%u.%u.%u.%u\", \"dstIP\": \"%u.%u.%u.%u\", \"srcPort\": %u, \"dstPort\": %u, \"session\": \"%c%c%c%c%c%c%c%c%c%c\", \"oooCount\": %llu, \"gapSeqStart\": %llu, \"gapSeqEnd\": %llu, \"gapCount\": %llu, \"timestamp\": \"%lf\", \"TS\": \"%s\"",
 					state->SrcIP.IP[0], state->SrcIP.IP[1], state->SrcIP.IP[2], state->SrcIP.IP[3],
 					state->DstIP.IP[0], state->DstIP.IP[1], state->DstIP.IP[2], state->DstIP.IP[3],
 					swap16(state->SrcPort), swap16(state->DstPort),
 					state->Session[0], state->Session[1], state->Session[2], state->Session[3], state->Session[4], state->Session[5], state->Session[6], state->Session[7], state->Session[8], state->Session[9],
 					state->SeqOOOCount, gap->Start, gap->End, gap_count,
-					gap->TS
+					gap->TS, TStr
 				);
 			if (g_VLANFound)
 			{
