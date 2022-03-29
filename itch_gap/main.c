@@ -26,7 +26,7 @@ bool g_VLANFound = false;
 
 u64 g_LastOutputTime = 0;
 // How often (in nanoseconds) we should drop current gap state and output gap/ooo counts
-u64 output_sample_time = 1 * S_TO_NS;
+u64 output_sample_time = 5 * 60 * S_TO_NS;
 
 // How often (in seconds) to output the stats index (msgs/s)
 double stat_sample_time = 1;
