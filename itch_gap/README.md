@@ -7,7 +7,7 @@
 
 Example program which show gap detection against NASDAQ MouldUDP protocol.
 
-On the Host forward historical data to the containers. One lxc_ring per multicast group 
+On the Host forward historical or realtime data to the containers. One lxc_ring per multicast group 
 
 ```
 sudo stream_cat --ring /opt/fmadio/queue/lxc_ring0 "vlan and port 26400" 
