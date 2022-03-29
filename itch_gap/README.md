@@ -12,8 +12,8 @@ On the Host forward historical data to the containers. One lxc_ring per multicas
 ```
 sudo stream_cat --ring /opt/fmadio/queue/lxc_ring0 "vlan and port 26400" 
                 --ring /opt/fmadio/queue/lxc_ring1 "vlan and port 26477" 
-				--ring /opt/fmadio/queue/lxc_ring2 "vlan and port 25475" 
-				-v  nasdaq_itch_20220329_0709 
+                --ring /opt/fmadio/queue/lxc_ring2 "vlan and port 25475" 
+                -v  nasdaq_itch_20220329_0709 
 
 
 
