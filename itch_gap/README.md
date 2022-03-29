@@ -10,7 +10,9 @@ Example program which show gap detection against NASDAQ MouldUDP protocol.
 Performance tested again NASDAQ ITCH March 3rd 2020, one of if not the highest volume days in recent years.
 
 Total message Count: 2,175,330,491 (2.1Bn messages)
+
 Processing Time    : 1457.079 Seconds (~24 Minutes) for full days data.
+
 
 ## Example Usage
 
