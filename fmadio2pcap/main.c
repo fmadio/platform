@@ -122,6 +122,7 @@ int main(int argc, char* argv[])
 	// signal handlers
 	signal(SIGINT,  signal_handler);
 	signal(SIGHUP,  signal_handler);
+	signal(SIGPIPE, signal_handler);
 
 	// write file to stoud
 	FILE* FPCAP 		= stdout; 
