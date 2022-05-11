@@ -85,7 +85,7 @@ static void ndelay(u64 ns)
 #define FMADRING_VERSION		0x00000100			// ring version 
 #define FMADRING_MAPSIZE		(16*1024*1024)		// total size of the map file. deliberately larger than the structure size
 #define FMADRING_ENTRYSIZE		(10*1024)			// total size header and payload of each packet 
-#define FMADRING_ENTRYCNT		(1024)				// number of entries in the ring 
+#define FMADRING_ENTRYCNT		(1*1024)			// number of entries in the ring 
 
 #define FMADRING_FLAG_EOF		(1<<0)			// end of file exit
 
@@ -103,7 +103,9 @@ typedef struct
 	u32				pad3;
 	u32				pad4;
 
-	u8				Payload[FMADRING_ENTRYSIZE-32];	// payload ensure each entry is 10KB
+	u8				Payload[FMADRING_ENTRYSIZE];	// payload ensure each entry is 10KB
+
+	u8				padAlign[2024];					// keep it 4KB page aligned	
 
 } __attribute__((packed)) fFMADRingPacket_t;
 
@@ -119,7 +121,7 @@ typedef struct
 	u32				IsTxFlowControl;				// tx has flow control enabled 
 	u64				TxTimeout;						// tx maximum timeout to wait
 
-	u8				align0[4096-3*4-2*8];			// keep header/put/get all on seperate 4K pages
+	u8				align0[4096-4*4-3*8];			// keep header/put/get all on seperate 4K pages
 
 	//--------------------------------------------------------------------------------	
 	
@@ -198,8 +200,8 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	assert(RING->Depth 		== FMADRING_ENTRYCNT); 
 	assert(RING->Mask		== FMADRING_ENTRYCNT - 1); 
 
-	fprintf(stderr, "RING: Put:%llx %llx\n", RING->Put, RING->Put & RING->Mask);
-	fprintf(stderr, "RING: Get:%llx %llx\n", RING->Get, RING->Get & RING->Mask);
+	fprintf(stderr, "RING: Put:%llx %llx %p\n", RING->Put, RING->Put & RING->Mask, &RING->Put);
+	fprintf(stderr, "RING: Get:%llx %llx %p\n", RING->Get, RING->Get & RING->Mask, &RING->Get);
 
 	// settings
 	RING->IsTxFlowControl	= IsFlowControl;	
@@ -337,7 +339,11 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 
 	} while (IsWait);
 
-	if (!Pkt) return 0;
+	if (!Pkt)
+	{
+		//ndelay(100);
+		return 0;
+	}
 
 	// make copy of relevant data
 	if (pTS) 			pTS[0] 				= Pkt->TS;
@@ -346,7 +352,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	if (pPort)			pPort[0]			= Pkt->Port;
 	if (Payload)		memcpy(Payload, Pkt->Payload, Pkt->LengthCapture);
 
-	sfence();
+	//sfence();
 
 	// next
 	RING->Get += 1;
