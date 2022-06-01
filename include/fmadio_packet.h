@@ -89,7 +89,7 @@ static void ndelay(u64 ns)
 
 #define FMADRING_FLAG_EOF		(1<<0)			// end of file exit
 
-typedef struct
+typedef struct fFMADRingPacket_t
 {
 	u64				TS;								// 64b nanosecond epoch	
 	u16				LengthWire;						// packet length on the wire
@@ -109,7 +109,7 @@ typedef struct
 
 } __attribute__((packed)) fFMADRingPacket_t;
 
-typedef struct
+typedef struct fFMADRingHeader_t
 {
 	u32				Version;						// FMADRing version
 	u32				Size;							// size of entire structure 
