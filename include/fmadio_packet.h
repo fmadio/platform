@@ -91,7 +91,7 @@ static void ndelay(u64 ns)
 #define FMADRING_ENTRYSIZE		(10*1024)			// total size header and payload of each packet 
 #define FMADRING_ENTRYCNT		(1*1024)			// number of entries in the ring 
 
-#define FMADRING_FLAG_EOF		(1<<0)			// end of file exit
+#define FMADRING_FLAG_EOF		(1<<0)				// end of file exit
 
 typedef struct fFMADRingPacket_t
 {
@@ -307,6 +307,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 	FPkt->LengthWire		= LengthWire;
 	FPkt->LengthCapture		= LengthCapture;
 	FPkt->Port				= 0; 
+	FPkt->Flag				= 0; 
 	memcpy(&FPkt->Payload[0], Payload, LengthCapture);
 
 	sfence();
@@ -316,6 +317,43 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 
 	return LengthCapture;
 }
+
+//---------------------------------------------------------------------------------------------
+// send EOF marker 
+static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
+{
+	// wait for space 
+	u64 TS0 = rdtsc();
+	while (RING->IsTxFlowControl)
+	{
+		s64 dQueue = RING->Put - RING->Get;
+		if (dQueue < RING->Depth-1) break; 
+
+		usleep(0);
+
+		u64 dTSC = (rdtsc() - TS0);
+		if (tsc2ns(dTSC) > RING->TxTimeout)
+		{
+			fprintf(stderr, "ERROR: RING wait for drain timeout\n");
+			return -1;
+		}
+	}
+
+	// send EOF packet 
+	fFMADRingPacket_t* FPkt = &RING->Packet[ RING->Put & RING->Mask ];
+	FPkt->TS				= TS;
+	FPkt->LengthWire		= 0;
+	FPkt->LengthCapture		= 0;
+	FPkt->Port				= 0; 
+	FPkt->Flag				= FMADRING_FLAG_EOF; 
+
+	sfence();
+
+	// publish 
+	RING->Put 				+= 1;
+	return 0; 
+}
+
 
 //---------------------------------------------------------------------------------------------
 // get a packet non-zero copy way but simple interface 
@@ -347,6 +385,13 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	{
 		//ndelay(100);
 		return 0;
+	}
+
+	// data stream finished
+	if (Pkt->Flag & FMADRING_FLAG_EOF)
+	{
+		fprintf(stderr, "recevied eof\n");
+		return -1;
 	}
 
 	// make copy of relevant data
