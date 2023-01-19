@@ -10,7 +10,6 @@
 #define  __FMADIO_PACKET_H__
 
 //---------------------------------------------------------------------------------------------
-
 #ifndef __F_TYPES_H__
 
 #ifndef __cplusplus
@@ -118,6 +117,8 @@ typedef struct fFMADRingHeader_t
 	u32				Version;						// FMADRing version
 	u32				Size;							// size of entire structure 
 	u32				SizePacket;						// size of a packet 
+
+	u8				Path[128];						// path of ring
 		
 	u64				Depth;							// depth of the ring 
 	u64				Mask;							// counter mask 
@@ -150,6 +151,24 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 										bool				IsFlowControl,
 										u64					TimeoutNS
 ){
+	//check ring file size is correct
+	struct stat s;
+	memset(&s, 0, sizeof(s));
+	stat(Path, &s);
+
+	//including if no file created 
+	if (s.st_size != sizeof(fFMADRingHeader_t))
+	{
+		fprintf(stderr, "RING Size missmatch %lli %lli %s\n", s.st_size, sizeof(fFMADRingHeader_t), Path); 
+
+		int fd = open64(Path,  O_RDWR | O_CREAT, 0666);	
+		fprintf(stderr, "errno:%i %i\n", fd, errno);
+		assert(fd > 0);
+		ftruncate(fd, sizeof(fFMADRingHeader_t)); 
+		close(fd);
+	}
+
+	// open
 	int fd  = open64(Path,  O_RDWR, S_IRWXU | S_IRWXG | 0777);	
 	if (fd < 0)
 	{
@@ -196,6 +215,9 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 
 		// set version last as sential the ring has been setup
 		RING->Version		= FMADRING_VERSION;		
+
+		// copy path for debug 
+		strncpy(RING->Path, Path, sizeof(RING->Path));
 	}
 
 	// check everything matches 
@@ -204,8 +226,8 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	assert(RING->Depth 		== FMADRING_ENTRYCNT); 
 	assert(RING->Mask		== FMADRING_ENTRYCNT - 1); 
 
-	fprintf(stderr, "RING: Put:%llx %llx %p\n", RING->Put, RING->Put & RING->Mask, &RING->Put);
-	fprintf(stderr, "RING: Get:%llx %llx %p\n", RING->Get, RING->Get & RING->Mask, &RING->Get);
+	fprintf(stderr, "RING[%s]: Put:%llx %llx %p\n", RING->Path, RING->Put, RING->Put & RING->Mask, &RING->Put);
+	fprintf(stderr, "RING[%s]: Get:%llx %llx %p\n", RING->Path, RING->Get, RING->Get & RING->Mask, &RING->Get);
 
 	// settings
 	RING->IsTxFlowControl	= IsFlowControl;	
@@ -296,7 +318,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 		u64 dTSC = (rdtsc() - TS0);
 		if (tsc2ns(dTSC) > RING->TxTimeout)
 		{
-			fprintf(stderr, "ERROR: RING wait for drain timeout\n");
+			fprintf(stderr, "ERROR[%s]: RING wait for drain timeout %lli > %lli\n", RING->Path, tsc2ns(dTSC), RING->TxTimeout);
 			return -1;
 		}
 	}
@@ -334,12 +356,12 @@ static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
 		u64 dTSC = (rdtsc() - TS0);
 		if (tsc2ns(dTSC) > RING->TxTimeout)
 		{
-			fprintf(stderr, "ERROR: RING wait for drain timeout\n");
+			fprintf(stderr, "ERROR[%s]: RING wait for drain timeout EOF %lli %lli\n", RING->Path, tsc2ns(dTSC), RING->TxTimeout);
 			return -1;
 		}
 	}
 
-	// send EOF packet 
+	// write packet
 	fFMADRingPacket_t* FPkt = &RING->Packet[ RING->Put & RING->Mask ];
 	FPkt->TS				= TS;
 	FPkt->LengthWire		= 0;
@@ -390,7 +412,6 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	// data stream finished
 	if (Pkt->Flag & FMADRING_FLAG_EOF)
 	{
-		fprintf(stderr, "recevied eof\n");
 		return -1;
 	}
 
