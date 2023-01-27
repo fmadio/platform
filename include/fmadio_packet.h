@@ -126,7 +126,7 @@ typedef struct fFMADRingHeader_t
 	u32				IsTxFlowControl;				// tx has flow control enabled 
 	u64				TxTimeout;						// tx maximum timeout to wait
 
-	u8				align0[4096-4*4-3*8];			// keep header/put/get all on seperate 4K pages
+	u8				align0[4096-4*4-3*8-128];			// keep header/put/get all on seperate 4K pages
 
 	//--------------------------------------------------------------------------------	
 	
