@@ -247,6 +247,8 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	// check version
 	fprintf(stderr, "Ring size   : %li %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
 	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
+	fprintf(stderr, "Ring Depth  : %8x %8x\n", RING->Depth, FMADRING_ENTRYCNT); 
+	fprintf(stderr, "Ring Mask   : %8x %8x\n", RING->Mask, FMADRING_ENTRYCNT-1); 
 
 	// version wrong then force reset
 	if (RING->Version != FMADRING_VERSION)
