@@ -159,7 +159,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	//including if no file created 
 	if (s.st_size != sizeof(fFMADRingHeader_t))
 	{
-		fprintf(stderr, "RING Size missmatch %lli %lli %s\n", s.st_size, sizeof(fFMADRingHeader_t), Path); 
+		fprintf(stderr, "RING Size missmatch %li %li %s\n", s.st_size, sizeof(fFMADRingHeader_t), Path); 
 
 		int fd = open64(Path,  O_RDWR | O_CREAT, 0666);	
 		fprintf(stderr, "errno:%i %i\n", fd, errno);
@@ -269,8 +269,8 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	// check version
 	fprintf(stderr, "Ring size   : %li %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
 	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
-	fprintf(stderr, "Ring Depth  : %8x %8x\n", RING->Depth, FMADRING_ENTRYCNT); 
-	fprintf(stderr, "Ring Mask   : %8x %8x\n", RING->Mask, FMADRING_ENTRYCNT-1); 
+	fprintf(stderr, "Ring Depth  : %8llx %8x\n", RING->Depth, FMADRING_ENTRYCNT); 
+	fprintf(stderr, "Ring Mask   : %8llx %8x\n", RING->Mask, FMADRING_ENTRYCNT-1); 
 
 	// version wrong then force reset
 	if (RING->Version != FMADRING_VERSION)
@@ -382,13 +382,13 @@ static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
 //---------------------------------------------------------------------------------------------
 // get a packet non-zero copy way but simple interface 
 static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING, 
-											bool IsWait,
-											u64*		pTS,	
-											u32*		pLengthWire,	
-											u32*		pLengthCapture,	
-											u32*		pPort,	
-											void*		Payload	
-										) 
+										bool 		IsWait,
+										u64*		pTS,	
+										u32*		pLengthWire,	
+										u32*		pLengthCapture,	
+										u32*		pPort,	
+										void*		Payload	
+									) 
 {
 	fFMADRingPacket_t* Pkt = NULL;
 	do 
