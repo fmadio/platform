@@ -31,6 +31,7 @@ static bool					s_IsRING	= false;			// shm ring format
 static u8*					s_RINGPath	= NULL;				// path to shm file
 static int					s_RINGfd;						// ring file handle
 static fFMADRingHeader_t*	s_RING		= NULL;  			// mapping
+static bool					s_NoSleep	= false;			// by default dont use the busy/poll
 
 //------------------------------------------------------------------------------
 static void help(void)
@@ -46,6 +47,7 @@ static void help(void)
 	fprintf(stderr, "Options:>\n");
 	fprintf(stderr, "   -i <path to fmadio ring file>    : location of fmad ring file\n");
 	fprintf(stderr, "   --cpu <cpu number>               : pin the process on the specified CPU\n");
+	fprintf(stderr, "   --no-sleep                       : use ndelay for a tight busy polly loop\n");
 	fprintf(stderr, "\n");
 }
 
@@ -90,6 +92,11 @@ int main(int argc, char* argv[])
 				return 0;
 			}
 		}
+		if (strcmp(argv[i], "--no-sleep") == 0)
+		{
+			s_NoSleep = true;
+		}
+
 		if (strcmp(argv[i], "--help") == 0)
 		{
 			help();
@@ -183,8 +190,14 @@ int main(int argc, char* argv[])
 		// request is nonblocking, run less hot, use usleep(0) to reduce cpu usage more 
 		if (ret == 0)
 		{
-			ndelay(100);
-			//usleep(0);
+			if (s_NoSleep)
+			{
+				ndelay(100);
+			}
+			else
+			{
+				usleep(0);
+			}
 		}
 	}
 	fflush(stdout);
