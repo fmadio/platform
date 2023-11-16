@@ -68,6 +68,7 @@ int main(int argc, char* argv[])
 			}
 
 			CPU = atoi(argv[i + 1]);
+			fprintf(stderr, "Will pin thread to CPU %i.\n", CPU);
 			i += 1;
 		}
 		else if (strcmp(argv[i], "--help") == 0)
