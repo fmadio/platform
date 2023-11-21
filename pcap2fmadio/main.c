@@ -18,6 +18,147 @@
 
 #include "include/fmadio_packet.h"
 
+#define k1E9 1000000000ULL
+
+typedef struct
+{
+	char*	Path;			// path to the file
+	char	Name[128];		// short name
+	FILE*	F;			// buffered io file handle
+	int	fd;			// file handler of the mmap attached data
+	u64	Length;			// exact file length
+	u64	MapLength;		// 4KB aligned mmap length
+	u8*	Map;			// raw mmap ptr
+
+	u64	ReadPos;		// current read pointer
+	u64	PktCnt;			// number of packets processed
+
+	u8*	PacketBuffer[256];	// packet queue 
+	u32	PacketPut;		// packet head 
+	u32	PacketGet;		// packet tail 
+	u32	PacketMsk;		// wrap  
+	u32	PacketMax;		// number of packet slots
+
+	u8*	ReadBuffer;
+	s32	ReadBufferPos;
+	s32	ReadBufferLen;
+	s32	ReadBufferMax;
+
+	bool	Finished;		// read completed
+
+	u64	TS;			// last TS processed
+
+} PCAPFile_t;
+
+static inline PCAPFile_t* PCAP_Open(u64* PCAPTimeScale)
+{
+	PCAPFile_t* F = (PCAPFile_t*)malloc( sizeof(PCAPFile_t) );
+	assert(F != NULL);
+	memset(F, 0, sizeof(PCAPFile_t));
+
+	F->F 		= stdin;
+	F->Length 	= 1e15;
+
+	// Note: always map as read-only. 
+	PCAPHeader_t Header1;
+
+	PCAPHeader_t* Header = NULL; 
+
+	{
+		int ret = fread(&Header1, 1, sizeof(Header1), F->F);
+
+		if (ret != sizeof(PCAPHeader_t))
+		{
+			fprintf(stderr, "failed to read header %i\n", ret);
+			return NULL;
+		}
+
+		Header = &Header1;
+		F->PacketPut	= 0;
+		F->PacketGet	= 0;
+		F->PacketMsk	= 255;
+		F->PacketMax	= 256;
+
+		for (int i=0; i < F->PacketMax; i++)
+		{
+			F->PacketBuffer[i]	= malloc(16 * 1024);
+			assert(F->PacketBuffer != NULL);
+		}
+	}
+
+	switch (Header->Magic)
+	{
+	case PCAPHEADER_MAGIC_USEC:
+		fprintf(stderr, "USec PCAP\n");
+		*PCAPTimeScale = 1000;
+		break;
+	case PCAPHEADER_MAGIC_NANO:
+		fprintf(stderr, "Nano PCAP\n");
+		*PCAPTimeScale = 1;
+		break;
+	default:
+		fprintf(stderr, "invalid pcap header %08x\n", Header->Magic);
+		return NULL;
+	}
+
+	F->ReadPos +=  sizeof(PCAPHeader_t);
+
+	// allocate read buffer
+	F->ReadBufferMax	= 1024*1024;
+	F->ReadBufferPos	= 0; 
+	F->ReadBuffer 		= malloc( F->ReadBufferMax );
+
+	return F;
+}
+
+static inline PCAPPacket_t* PCAP_Read(PCAPFile_t* PCAP)
+{
+	int ret;
+	PCAPPacket_t* Pkt = (PCAPPacket_t*)PCAP->PacketBuffer[PCAP->PacketPut];
+	PCAP->PacketPut = (PCAP->PacketPut + 1) & PCAP->PacketMsk; 
+
+	ret = fread(Pkt, 1, sizeof(PCAPPacket_t), PCAP->F);
+
+	if (ret != sizeof(PCAPPacket_t))
+	{
+		fprintf(stderr, "header invalid: %i expect %lu\n", ret, sizeof(PCAPPacket_t));
+		return NULL;
+	}
+
+	if (PCAP->ReadPos + sizeof(PCAPPacket_t) + Pkt->LengthCapture > PCAP->Length)
+	{
+		fprintf(
+			stderr,
+			"offset : %llu expect %llu\n",
+			PCAP->ReadPos + sizeof(PCAPPacket_t) + Pkt->LengthCapture, PCAP->Length
+		);
+
+		fprintf(
+			stderr,
+			"read %llu LenCap: %i Length %llu\n",
+			PCAP->ReadPos, Pkt->LengthCapture, PCAP->Length
+		);
+
+		return NULL; 
+	}
+
+	ret = fread(Pkt + 1, 1, Pkt->LengthCapture, PCAP->F);
+
+	if (ret != Pkt->LengthCapture)
+	{
+		fprintf(stderr, "length %i expect %i\n",  ret, Pkt->LengthCapture);
+		return NULL;
+	}
+
+	PCAP->ReadPos += Pkt->LengthCapture;
+	return Pkt;
+}
+
+static inline u64 PCAP_TimeStamp(PCAPPacket_t* Pkt, u64 TimeScale, u64 TimeZoneOffs)
+{
+	return TimeZoneOffs + Pkt->Sec * k1E9 + Pkt->NSec * TimeScale;
+}
+
 volatile sig_atomic_t s_Exit = false;
 
 static void signal_handler(int i, siginfo_t* si, void* ctx)

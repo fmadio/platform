@@ -32,6 +32,7 @@ typedef int					s32;
 typedef unsigned long long	u64;
 typedef long long			s64;
 
+
 //---------------------------------------------------------------------------------------------
 
 static inline volatile u64 rdtsc(void)
@@ -81,8 +82,6 @@ static void ndelay(u64 ns)
 }
 
 #endif
-
-#define k1E9 1000000000ULL
 
 //---------------------------------------------------------------------------------------------
 
@@ -145,13 +144,13 @@ typedef struct fFMADRingHeader_t
 
 //---------------------------------------------------------------------------------------------
 // open fmad packet ring for tx 
-static inline int FMADPacket_OpenTx(int*                pfd, 
-				    fFMADRingHeader_t** pRing, 
-				    bool 		IsReset, 
-				    u8* 		Path,
-				    bool		IsFlowControl,
-				    u64			TimeoutNS)
-{
+static inline int FMADPacket_OpenTx(	int* 				pfd, 
+										fFMADRingHeader_t** pRing, 
+										bool 				IsReset, 
+										u8* 				Path,
+										bool				IsFlowControl,
+										u64					TimeoutNS
+){
 	//check ring file size is correct
 	struct stat s;
 	memset(&s, 0, sizeof(s));
@@ -160,7 +159,7 @@ static inline int FMADPacket_OpenTx(int*                pfd,
 	//including if no file created 
 	if (s.st_size != sizeof(fFMADRingHeader_t))
 	{
-		fprintf(stderr, "RING Size missmatch %li %li %s\n", s.st_size, sizeof(fFMADRingHeader_t), Path);
+		fprintf(stderr, "RING Size missmatch %li %li %s\n", s.st_size, sizeof(fFMADRingHeader_t), Path); 
 
 		int fd = open64(Path,  O_RDWR | O_CREAT, 0666);	
 		fprintf(stderr, "errno:%i %i\n", fd, errno);
@@ -243,11 +242,11 @@ static inline int FMADPacket_OpenTx(int*                pfd,
 
 //---------------------------------------------------------------------------------------------
 // open fmad packet ring for rx 
-static inline int FMADPacket_OpenRx(int* 		pfd, 
-				    fFMADRingHeader_t** pRing, 
-				    bool 		IsWait, 
-				    u8* 		Path)
-{
+static inline int FMADPacket_OpenRx(	int* 				pfd, 
+										fFMADRingHeader_t** pRing, 
+										bool 				IsWait, 
+										u8* 				Path
+){
 	int fd = 0;	
 
 	fd  = open64(Path,  O_RDWR, S_IRWXU | S_IRWXG | 0777);	
@@ -301,12 +300,13 @@ static inline int FMADPacket_OpenRx(int* 		pfd,
 
 //---------------------------------------------------------------------------------------------
 // write packet 
-static inline int FMADPacket_SendV1(fFMADRingHeader_t* RING, 
-				    u64 TS, 
-				    u32	LengthWire,
-				    u32	LengthCapture,
-				    u32	Port,
-				    void* Payload)
+static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING, 
+										u64 				TS, 
+										u32 				LengthWire,
+										u32 				LengthCapture,
+										u32 				Port,
+										void*	 			Payload
+									)
 {
 	// wait for space 
 	u64 TS0 = rdtsc();
@@ -344,7 +344,7 @@ static inline int FMADPacket_SendV1(fFMADRingHeader_t* RING,
 
 //---------------------------------------------------------------------------------------------
 // send EOF marker 
-static inline int FMADPacket_SendEOFV1(fFMADRingHeader_t* RING, u64 TS)
+static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
 {
 	// wait for space 
 	u64 TS0 = rdtsc();
@@ -381,13 +381,14 @@ static inline int FMADPacket_SendEOFV1(fFMADRingHeader_t* RING, u64 TS)
 
 //---------------------------------------------------------------------------------------------
 // get a packet non-zero copy way but simple interface 
-static inline int FMADPacket_RecvV1(fFMADRingHeader_t*  RING, 
-				    bool 		IsWait,
-				    u64*		pTS,	
-				    u32*		pLengthWire,	
-				    u32*		pLengthCapture,	
-				    u32*		pPort,	
-				    void*		Payload) 
+static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING, 
+										bool 		IsWait,
+										u64*		pTS,	
+										u32*		pLengthWire,	
+										u32*		pLengthCapture,	
+										u32*		pPort,	
+										void*		Payload	
+									) 
 {
 	fFMADRingPacket_t* Pkt = NULL;
 	do 
@@ -467,145 +468,6 @@ typedef struct PCAPPacket_t
                                             // [31:16] reserved
 
 } __attribute__((packed)) PCAPPacket_t;
-
-typedef struct
-{
-	char*	Path;			// path to the file
-	char	Name[128];		// short name
-	FILE*	F;			// buffered io file handle
-	int	fd;			// file handler of the mmap attached data
-	u64	Length;			// exact file length
-	u64	MapLength;		// 4KB aligned mmap length
-	u8*	Map;			// raw mmap ptr
-
-	u64	ReadPos;		// current read pointer
-	u64	PktCnt;			// number of packets processed
-
-	u8*	PacketBuffer[256];	// packet queue 
-	u32	PacketPut;		// packet head 
-	u32	PacketGet;		// packet tail 
-	u32	PacketMsk;		// wrap  
-	u32	PacketMax;		// number of packet slots
-
-	u8*	ReadBuffer;
-	s32	ReadBufferPos;
-	s32	ReadBufferLen;
-	s32	ReadBufferMax;
-
-	bool	Finished;		// read completed
-
-	u64	TS;			// last TS processed
-
-} PCAPFile_t;
-
-static inline PCAPFile_t* PCAP_Open(u64* PCAPTimeScale)
-{
-	PCAPFile_t* F = (PCAPFile_t*)malloc( sizeof(PCAPFile_t) );
-	assert(F != NULL);
-	memset(F, 0, sizeof(PCAPFile_t));
-
-	F->F 		= stdin;
-	F->Length 	= 1e15;
-
-	// Note: always map as read-only. 
-	PCAPHeader_t Header1;
-
-	PCAPHeader_t* Header = NULL; 
-
-	{
-		int ret = fread(&Header1, 1, sizeof(Header1), F->F);
-
-		if (ret != sizeof(PCAPHeader_t))
-		{
-			fprintf(stderr, "failed to read header %i\n", ret);
-			return NULL;
-		}
-
-		Header = &Header1;
-		F->PacketPut	= 0;
-		F->PacketGet	= 0;
-		F->PacketMsk	= 255;
-		F->PacketMax	= 256;
-
-		for (int i=0; i < F->PacketMax; i++)
-		{
-			F->PacketBuffer[i]	= malloc(16 * 1024);
-			assert(F->PacketBuffer != NULL);
-		}
-	}
-
-	switch (Header->Magic)
-	{
-	case PCAPHEADER_MAGIC_USEC:
-		fprintf(stderr, "USec PCAP\n");
-		*PCAPTimeScale = 1000;
-		break;
-	case PCAPHEADER_MAGIC_NANO:
-		fprintf(stderr, "Nano PCAP\n");
-		*PCAPTimeScale = 1;
-		break;
-	default:
-		fprintf(stderr, "invalid pcap header %08x\n", Header->Magic);
-		return NULL;
-	}
-
-	F->ReadPos +=  sizeof(PCAPHeader_t);
-
-	// allocate read buffer
-	F->ReadBufferMax	= 1024*1024;
-	F->ReadBufferPos	= 0; 
-	F->ReadBuffer 		= malloc( F->ReadBufferMax );
-
-	return F;
-}
-
-static inline PCAPPacket_t* PCAP_Read(PCAPFile_t* PCAP)
-{
-	int ret;
-	PCAPPacket_t* Pkt = (PCAPPacket_t*)PCAP->PacketBuffer[PCAP->PacketPut];
-	PCAP->PacketPut = (PCAP->PacketPut + 1) & PCAP->PacketMsk; 
-
-	ret = fread(Pkt, 1, sizeof(PCAPPacket_t), PCAP->F);
-
-	if (ret != sizeof(PCAPPacket_t))
-	{
-		fprintf(stderr, "header invalid: %i expect %lu\n", ret, sizeof(PCAPPacket_t));
-		return NULL;
-	}
-
-	if (PCAP->ReadPos + sizeof(PCAPPacket_t) + Pkt->LengthCapture > PCAP->Length)
-	{
-		fprintf(
-			stderr,
-			"offset : %llu expect %llu\n",
-			PCAP->ReadPos + sizeof(PCAPPacket_t) + Pkt->LengthCapture, PCAP->Length
-		);
-
-		fprintf(
-			stderr,
-			"read %llu LenCap: %i Length %llu\n",
-			PCAP->ReadPos, Pkt->LengthCapture, PCAP->Length
-		);
-
-		return NULL; 
-	}
-
-	ret = fread(Pkt + 1, 1, Pkt->LengthCapture, PCAP->F);
-
-	if (ret != Pkt->LengthCapture)
-	{
-		fprintf(stderr, "length %i expect %i\n",  ret, Pkt->LengthCapture);
-		return NULL;
-	}
-
-	PCAP->ReadPos += Pkt->LengthCapture;
-	return Pkt;
-}
-
-static inline u64 PCAP_TimeStamp(PCAPPacket_t* Pkt, u64 TimeScale, u64 TimeZoneOffs)
-{
-	return TimeZoneOffs + Pkt->Sec * k1E9 + Pkt->NSec * TimeScale;
-}
 
 //---------------------------------------------------------------------------------------------
 
