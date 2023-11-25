@@ -224,12 +224,14 @@ int main(int argc, char* argv[])
 	TRing_t TRing;
 	memset(&TRing, 0, sizeof(TRing_t));
 
-	static const unsigned int RING_FRAME_COUNT = 128;
+	static const unsigned int RING_FRAME_COUNT = 64;
 
 	TRing.Req.tp_block_size = RING_FRAME_COUNT * getpagesize();
 	TRing.Req.tp_block_nr = 1;
 	TRing.Req.tp_frame_size = getpagesize();
 	TRing.Req.tp_frame_nr = RING_FRAME_COUNT;
+
+	fprintf(stderr, "Packet TX ring frame size: %u\n", TRing.Req.tp_frame_size);
 
 	{
 		int Result = setsockopt(Socket,
@@ -268,6 +270,7 @@ int main(int argc, char* argv[])
 	}
 
 	ssize_t RingOffs = 0;
+	u64 WaitingPkt = 0, WaitingByte = 0;
 
 	u32 PktBufferMax = 128 * 1024;
 	u8* PktBuffer = malloc(PktBufferMax);
@@ -346,19 +349,28 @@ int main(int argc, char* argv[])
 			Header->tp_status = TP_STATUS_SEND_REQUEST;
 
 			RingOffs = (RingOffs + 1) & (RING_FRAME_COUNT - 1);
+			WaitingPkt += 1;
+			WaitingByte += Result;
 
-			int R = send(Socket, NULL, 0, 0);
-
-			if (R == -1)
+			if (WaitingPkt == RING_FRAME_COUNT)
 			{
-				fprintf(stderr, "Failed to send a packet: %s\n", strerror(errno));
-				FailedPkt += 1;
-				FailedPkt += Result;
-				continue;
-			}
+				int R = send(Socket, NULL, 0, 0);
 
-			SentPkt += 1;
-			SentByte += R;
+				if (R == -1)
+				{
+					fprintf(stderr, "Failed to send packets: %s\n", strerror(errno));
+					FailedPkt += WaitingPkt;
+					FailedByte += Result;
+					WaitingPkt = 0;
+					WaitingByte = 0;
+					continue;
+				}
+
+				SentPkt += WaitingPkt;
+				SentByte += R;
+				WaitingPkt = 0;
+				WaitingByte = 0;
+			}
 		}
 		else if (Result < 0)
 		{
@@ -379,9 +391,26 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	{
+		int R = send(Socket, NULL, 0, 0);
+
+		if (R == -1)
+		{
+			fprintf(stderr, "Failed to send packets: %s\n", strerror(errno));
+			FailedPkt += WaitingPkt;
+			FailedPkt += WaitingByte;
+		}
+		else
+		{
+			SentPkt += WaitingPkt;
+			SentByte += R;
+		}
+	}
+
 	fflush(stdout);
 
-	fprintf(stderr, "\nReceived: %lli packets (%lliB)\n", ReceivedPkt, ReceivedByte);
+	fprintf(stderr, "\nByte counts are in capture length (not wire length) where applicable.\n");
+	fprintf(stderr, "Received: %lli packets (%lliB)\n", ReceivedPkt, ReceivedByte);
 	fprintf(stderr, "Sent: %lli packets (%lliB)\n", SentPkt, SentByte);
 	fprintf(stderr, "Failed to send: %lli packets (%lliB)\n", FailedPkt, FailedByte);
 	fprintf(stderr, "Truncated: %lli packets (%lliB lost in total)\n", TruncatedPkt, TruncatedByte);
