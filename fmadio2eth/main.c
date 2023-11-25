@@ -60,7 +60,7 @@ static void SignalHandler(int Sig)
 	s_Exit = true;
 }
 
-static void PrintHelp()
+static void PrintHelp(void)
 {
 	fprintf(stderr,
 			"fmadio2eth [options]\n"
