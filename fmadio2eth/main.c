@@ -261,8 +261,6 @@ int main(int argc, char* argv[])
 	TRing.Req.tp_frame_size = getpagesize();
 	TRing.Req.tp_frame_nr = RING_FRAME_COUNT;
 
-	fprintf(stderr, "Packet TX ring frame size: %u\n", TRing.Req.tp_frame_size);
-
 	{
 		int Result = setsockopt(Socket,
 								SOL_PACKET,
