@@ -39,6 +39,7 @@ enum {
 	EXIT_IFINDEX,
 	EXIT_BIND,
 	EXIT_TXRING,
+	EXIT_MTU,
 	EXIT_MMAP,
 	EXIT_SOCKETCLOSE,
 };
@@ -260,6 +261,27 @@ int main(int argc, char* argv[])
 		return EXIT_MMAP;
 	}
 
+	size_t MTU;
+
+	{
+		char* CmdBuf = (char*)malloc(64 + strlen(IFace));
+		sprintf(CmdBuf, "ifconfig %s | sed -n 's/.*mtu \\([0-9]\\+\\).*/\\1/p'", IFace);
+		FILE* Pipe = popen(CmdBuf, "r");
+
+		if (Pipe == NULL)
+		{
+			fprintf(stderr, "Failed to get MTU of interface: `%s` (%s)\n", IFace, strerror(errno));
+			return EXIT_MTU;
+		}
+
+		char Output[5];
+
+		fgets(Output, sizeof(Output), Pipe);
+		MTU = (size_t)atoll(Output);
+		pclose(Pipe);
+		fprintf(stderr, "Packets will be truncated to MTU: %luB\n", MTU);
+	}
+
 	TRing.RD = malloc(TRing.Req.tp_block_nr * sizeof(*TRing.RD));
 	assert(TRing.RD);
 
@@ -310,11 +332,11 @@ int main(int argc, char* argv[])
 
 			size_t Len = sizeof(PCAPPacket_t) + Pkt->LengthCapture;
 
-			if (Len > 1500)
+			if (Len > MTU)
 			{
 				TruncatedPkt += 1;
-				TruncatedByte += (Len - 1500);
-				Len = 1500;
+				TruncatedByte += (Len - MTU);
+				Len = MTU;
 			}
 
 			struct tpacket2_hdr* Header = (void*)TRing.Map + (RingOffs * TRing.Req.tp_frame_size);
