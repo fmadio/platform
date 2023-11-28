@@ -29,6 +29,13 @@
 
 #include "include/fmadio_packet.h"
 
+#define CLOSE_SOCK \
+	if (close(Socket) < 0) \
+	{ \
+		fprintf(stderr, "Error during socket close: %s\n", strerror(errno)); \
+		return EXIT_SOCKETCLOSE; \
+	}
+
 enum {		
 	EXIT_UNKNOWNARG = EXIT_FAILURE + 64,
 	EXIT_MISSINGARG,
@@ -41,6 +48,7 @@ enum {
 	EXIT_TXRING,
 	EXIT_MTU,
 	EXIT_MMAP,
+	EXIT_POLL,
 	EXIT_SOCKETCLOSE,
 };
 
@@ -49,6 +57,13 @@ typedef struct {
 	u8 *Map;
 	struct tpacket_req Req;
 } TRing_t;
+
+typedef struct {
+	u64 ReceivedPkt, ReceivedByte;
+	u64 SentPkt, SentByte;
+	u64 FailedPkt, FailedByte;
+	u64 TruncatedPkt, TruncatedByte;
+} Stats_t;
 
 volatile sig_atomic_t s_Exit = false;
 
@@ -73,6 +88,20 @@ static void PrintHelp(void)
 			"		-e <interface name> (required)\n"
 			"		--cpu <integer> : pin the process to the specified CPU core\n"
 			"		--no-sleep : use `ndelay` for a high-frequency loop\n");
+}
+
+static void PrintStats(Stats_t* Stats)
+{
+	fprintf(stderr, "\nByte counts are in capture length (not wire length) where applicable.\n");
+
+	fprintf(stderr, "Received: %lli packets (%lliB)\n",
+			Stats->ReceivedPkt, Stats->ReceivedByte);
+	fprintf(stderr, "Sent: %lli packets (%lliB)\n",
+			Stats->SentPkt, Stats->SentByte);
+	fprintf(stderr, "Failed to send: %lli packets (%lliB)\n",
+			Stats->FailedPkt, Stats->FailedByte);
+	fprintf(stderr, "Truncated: %lli packets (%lliB lost in total)\n",
+			Stats->TruncatedPkt, Stats->TruncatedByte);
 }
 
 int main(int argc, char* argv[])
@@ -298,12 +327,7 @@ int main(int argc, char* argv[])
 	u8* PktBuffer = malloc(PktBufferMax);
 	memset(PktBuffer, 0, PktBufferMax);
 
-	u64
-		ReceivedPkt = 0, ReceivedByte = 0,
-		SentPkt = 0, SentByte = 0,
-		FailedPkt = 0, FailedByte = 0,
-		TruncatedPkt = 0, TruncatedByte = 0;
-
+	Stats_t Stats = {0};
 	fprintf(stderr, "Ring receive loop starting...\n");
 
 	while (!s_Exit)
@@ -320,9 +344,9 @@ int main(int argc, char* argv[])
 
 		if (Result > 0)
 		{
-			ReceivedPkt += 1;
-			ReceivedByte += Result;
-			
+			Stats.ReceivedPkt += 1;
+			Stats.ReceivedByte += Result;
+
 			// sanitize it
 			assert(Pkt->LengthCapture > 0);	
 			assert(Pkt->LengthCapture < (16 * 1024));
@@ -334,8 +358,8 @@ int main(int argc, char* argv[])
 
 			if (Len > MTU)
 			{
-				TruncatedPkt += 1;
-				TruncatedByte += (Len - MTU);
+				Stats.TruncatedPkt += 1;
+				Stats.TruncatedByte += (Len - MTU);
 				Len = MTU;
 			}
 
@@ -357,10 +381,16 @@ int main(int argc, char* argv[])
 				{
 					if (errno != EINTR)
 					{
-						assert(false && "TODO");
+						fprintf(stderr, "TX ring poll failed: %s\n", strerror(errno));
+						PrintStats(&Stats);
+						CLOSE_SOCK
+						return EXIT_POLL;
 					}
 
-					assert(false && "TODO");
+					fprintf(stderr, "TX ring polling interrupted.\n");
+					PrintStats(&Stats);
+					CLOSE_SOCK
+					return EXIT_SUCCESS;
 				}
 			}
 
@@ -381,15 +411,15 @@ int main(int argc, char* argv[])
 				if (R == -1)
 				{
 					fprintf(stderr, "Failed to send packets: %s\n", strerror(errno));
-					FailedPkt += WaitingPkt;
-					FailedByte += Result;
+					Stats.FailedPkt += WaitingPkt;
+					Stats.FailedByte += Result;
 					WaitingPkt = 0;
 					WaitingByte = 0;
 					continue;
 				}
 
-				SentPkt += WaitingPkt;
-				SentByte += R;
+				Stats.SentPkt += WaitingPkt;
+				Stats.SentByte += R;
 				WaitingPkt = 0;
 				WaitingByte = 0;
 			}
@@ -419,30 +449,19 @@ int main(int argc, char* argv[])
 		if (R == -1)
 		{
 			fprintf(stderr, "Failed to send packets: %s\n", strerror(errno));
-			FailedPkt += WaitingPkt;
-			FailedPkt += WaitingByte;
+			Stats.FailedPkt += WaitingPkt;
+			Stats.FailedPkt += WaitingByte;
 		}
 		else
 		{
-			SentPkt += WaitingPkt;
-			SentByte += R;
+			Stats.SentPkt += WaitingPkt;
+			Stats.SentByte += R;
 		}
 	}
 
 	fflush(stdout);
-
-	fprintf(stderr, "\nByte counts are in capture length (not wire length) where applicable.\n");
-	fprintf(stderr, "Received: %lli packets (%lliB)\n", ReceivedPkt, ReceivedByte);
-	fprintf(stderr, "Sent: %lli packets (%lliB)\n", SentPkt, SentByte);
-	fprintf(stderr, "Failed to send: %lli packets (%lliB)\n", FailedPkt, FailedByte);
-	fprintf(stderr, "Truncated: %lli packets (%lliB lost in total)\n", TruncatedPkt, TruncatedByte);
-
-	if (close(Socket) < 0)
-	{
-		fprintf(stderr, "Error during socket close: %s\n", strerror(errno));
-		return EXIT_SOCKETCLOSE;
-	}
-
+	PrintStats(&Stats);
+	CLOSE_SOCK
 	return EXIT_SUCCESS;
 }
 
