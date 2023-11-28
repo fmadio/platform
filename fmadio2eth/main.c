@@ -331,7 +331,7 @@ int main(int argc, char* argv[])
 	fprintf(stderr, "Ring receive loop starting...\n");
 
 	while (!s_Exit)
-	{
+	{		
 		u64 TS;
 		PCAPPacket_t* Pkt	= (PCAPPacket_t*)PktBuffer;
 
@@ -432,6 +432,26 @@ int main(int argc, char* argv[])
 		// request is nonblocking, run less hot, use usleep(0) to reduce CPU usage more 
 		else
 		{
+			if (WaitingPkt > 0)
+			{
+				int R = send(Socket, NULL, 0, 0);
+
+				if (R == -1)
+				{
+					fprintf(stderr, "Failed to send packets: %s\n", strerror(errno));
+					Stats.FailedPkt += WaitingPkt;
+					Stats.FailedPkt += WaitingByte;
+				}
+				else
+				{
+					Stats.SentPkt += WaitingPkt;
+					Stats.SentByte += R;
+				}
+
+				WaitingPkt = 0;
+				WaitingByte = 0;
+			}
+
 			if (NoSleep)
 			{
 				ndelay(100);
