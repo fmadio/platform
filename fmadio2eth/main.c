@@ -362,11 +362,10 @@ int main(int argc, char* argv[])
 			}
 
 			struct tpacket2_hdr* Header = (void*)TRing.Map + (RingOffs * TRing.Req.tp_frame_size);
-			u32 HdrLen = Header->tp_len;
 			assert((((unsigned long)Header) & (getpagesize() - 1)) == 0);
 
+			// wait for previous packet to complete sending
 			struct pollfd Pollset;
-
 			while (Header->tp_status != TP_STATUS_AVAILABLE)
 			{
 				Pollset.fd = Socket;
@@ -392,11 +391,16 @@ int main(int argc, char* argv[])
 				}
 			}
 
-			u8* Dest = ((void*)Header) + (TPACKET_ALIGN(HdrLen));
-			memcpy(Dest, Pkt, Len);
+			// where to write data to
+			u8* Dest = (u8*)Header + sizeof(struct tpacket2_hdr);
+			u8* Src  = (u8*)(Pkt + 1);
+			memcpy(Dest, Src, Len);
 
-			Header->tp_len = Len;
-			Header->tp_status = TP_STATUS_SEND_REQUEST;
+			// tell tpacket about it 
+			Header->tp_sec		= Pkt->Sec;
+			Header->tp_nsec 	= Pkt->NSec;
+			Header->tp_len 		= Len;
+			Header->tp_status	= TP_STATUS_SEND_REQUEST;
 
 			RingOffs = (RingOffs + 1) & (RING_FRAME_COUNT - 1);
 			WaitingPkt += 1;
