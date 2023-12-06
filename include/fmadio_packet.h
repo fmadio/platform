@@ -166,7 +166,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	//including if no file created 
 	if (s.st_size != sizeof(fFMADRingHeader_t))
 	{
-		fprintf(stderr, "RING[%-50s] Size missmatch %lli %i\n", Path, s.st_size, sizeof(fFMADRingHeader_t) );
+		fprintf(stderr, "RING[%-50s] Size missmatch %lli %i\n", Path, (u64)s.st_size, sizeof(fFMADRingHeader_t) );
 
 		int fd = open64(Path,  O_RDWR | O_CREAT, 0666);	
 		if (fd < 0)
