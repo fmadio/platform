@@ -10,6 +10,7 @@
 #define  __FMADIO_PACKET_H__
 
 //---------------------------------------------------------------------------------------------
+
 #ifndef __F_TYPES_H__
 
 #ifndef __cplusplus
@@ -83,6 +84,7 @@ static void ndelay(u64 ns)
 
 #endif
 
+
 //---------------------------------------------------------------------------------------------
 
 #define FMADRING_VERSION		0x00000100			// ring version 
@@ -126,7 +128,7 @@ typedef struct fFMADRingHeader_t
 	u32				IsTxFlowControl;				// tx has flow control enabled 
 	u64				TxTimeout;						// tx maximum timeout to wait
 
-	u8				align0[4096-4*4-3*8-128];			// keep header/put/get all on seperate 4K pages
+	u8				align0[4096-4*4-3*8-128];		// keep header/put/get all on seperate 4K pages
 
 	//--------------------------------------------------------------------------------	
 	
@@ -159,11 +161,15 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	//including if no file created 
 	if (s.st_size != sizeof(fFMADRingHeader_t))
 	{
-		fprintf(stderr, "RING Size missmatch %li %li %s\n", s.st_size, sizeof(fFMADRingHeader_t), Path); 
+		fprintf(stderr, "RING[%-50s] Size missmatch %lli %lli\n", Path, s.st_size, sizeof(fFMADRingHeader_t) );
 
 		int fd = open64(Path,  O_RDWR | O_CREAT, 0666);	
-		fprintf(stderr, "errno:%i %i\n", fd, errno);
+		if (fd < 0)
+		{
+			fprintf(stderr, "RING[%-50s] failed to create new ring  errno:%i %s\n", Path, errno, strerror(errno)); 
+		}
 		assert(fd > 0);
+
 		ftruncate(fd, sizeof(fFMADRingHeader_t)); 
 		close(fd);
 	}
@@ -172,7 +178,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	int fd  = open64(Path,  O_RDWR, S_IRWXU | S_IRWXG | 0777);	
 	if (fd < 0)
 	{
-		fprintf(stderr, "failed to create FMADRing file [%s] errno:%i %s\n",  Path, errno, strerror(errno));
+		fprintf(stderr, "RING[%-50s] failed to create FMADRing file errno:%i %s\n",  Path, errno, strerror(errno));
 		return -1;
 	}
 
@@ -180,20 +186,20 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	u8* Map = mmap64(0, FMADRING_MAPSIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (Map == (u8*)-1)
 	{
-		fprintf(stderr, "failed to map RING [%s]\n", Path);
+		fprintf(stderr, "RING[%-50s]failed to map RING\n", Path);
 		return -1;	
 	}
 
 	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
 
 	// check version
-	fprintf(stderr, "Ring size   : %li %i\n", sizeof(fFMADRingHeader_t), FMADRING_MAPSIZE);
-	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
+	fprintf(stderr, "RING[%-50s] Size   : %li %i\n", Path, sizeof(fFMADRingHeader_t), FMADRING_MAPSIZE);
+	fprintf(stderr, "RING[%-50s] Version: %8x %8x\n", Path, RING->Version, FMADRING_VERSION); 
 
 	// version wrong then force reset
 	if (RING->Version != FMADRING_VERSION)
 	{
-		fprintf(stderr, "RING version wrong force reset\n");
+		fprintf(stderr, "RING[%-50s] version wrong force reset\n", Path);
 		IsReset = true;
 	}
 
@@ -226,8 +232,8 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	assert(RING->Depth 		== FMADRING_ENTRYCNT); 
 	assert(RING->Mask		== FMADRING_ENTRYCNT - 1); 
 
-	fprintf(stderr, "RING[%s]: Put:%llx %llx %p\n", RING->Path, RING->Put, RING->Put & RING->Mask, &RING->Put);
-	fprintf(stderr, "RING[%s]: Get:%llx %llx %p\n", RING->Path, RING->Get, RING->Get & RING->Mask, &RING->Get);
+	fprintf(stderr, "RING[%-50s] Put:%llx %llx %p\n", RING->Path, RING->Put, RING->Put & RING->Mask, &RING->Put);
+	fprintf(stderr, "RING[%-50s] Get:%llx %llx %p\n", RING->Path, RING->Get, RING->Get & RING->Mask, &RING->Get);
 
 	// settings
 	RING->IsTxFlowControl	= IsFlowControl;	
@@ -252,7 +258,7 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	fd  = open64(Path,  O_RDWR, S_IRWXU | S_IRWXG | 0777);	
 	if (fd < 0)
 	{
-		fprintf(stderr, "failed to create FMADRing file [%s] errno:%i %s\n",  Path, errno, strerror(errno));
+		fprintf(stderr, "RING[%-50s] failed to create FMADRing file errno:%i %s\n",  Path, errno, strerror(errno));
 		return -1;
 	}
 
@@ -260,22 +266,20 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	u8* Map = mmap64(0, FMADRING_MAPSIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (Map == (u8*)-1)
 	{
-		fprintf(stderr, "failed to map RING [%s]\n", Path);
+		fprintf(stderr, "RING[%-50s] failed to map RING\n", Path);
 		return -1;	
 	}
 
 	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
 
 	// check version
-	fprintf(stderr, "Ring size   : %li %i %i\n", sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
-	fprintf(stderr, "Ring Version: %8x %8x\n", RING->Version, FMADRING_VERSION); 
-	fprintf(stderr, "Ring Depth  : %8llx %8x\n", RING->Depth, FMADRING_ENTRYCNT); 
-	fprintf(stderr, "Ring Mask   : %8llx %8x\n", RING->Mask, FMADRING_ENTRYCNT-1); 
+	fprintf(stderr, "RING[%-50s] Size   : %li %i %i\n", Path, sizeof(fFMADRingHeader_t), RING->Size, FMADRING_MAPSIZE);
+	fprintf(stderr, "RING[%-50s] Version: %8x %8x\n", Path, RING->Version, FMADRING_VERSION); 
 
 	// version wrong then force reset
 	if (RING->Version != FMADRING_VERSION)
 	{
-		fprintf(stderr, "RING version wrong\n");
+		fprintf(stderr, "RING[%-50s] version wrong\n", Path);
 		assert(false);
 	}
 
@@ -288,8 +292,9 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	//reset get point to current write pointer 
 	RING->Get = RING->Put;
 
-	fprintf(stderr, "RING: Put:%llx %llx\n", RING->Put, RING->Put & RING->Mask);
-	fprintf(stderr, "RING: Get:%llx %llx\n", RING->Get, RING->Get & RING->Mask);
+	fprintf(stderr, "RING[%-50s] Path:%s", Path, RING->Path);
+	fprintf(stderr, "RING[%-50s] Put:%llx %llx\n", Path, RING->Put, RING->Put & RING->Mask);
+	fprintf(stderr, "RING[%-50s] Get:%llx %llx\n", Path, RING->Get, RING->Get & RING->Mask);
 
 	// update files
 	if (pfd) 	pfd[0] 		= fd;
@@ -297,6 +302,54 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 
 	return 0;
 }
+
+//---------------------------------------------------------------------------------------------
+// open fmad packet ring for monitoring only (read only) 
+static inline int FMADPacket_OpenMon(	int* 				pfd, 
+										fFMADRingHeader_t** pRing, 
+										u8* 				Path
+){
+	int fd = 0;	
+
+	fd  = open64(Path,  O_RDONLY, S_IRWXU | S_IRWXG | 0777);	
+	if (fd < 0)
+	{
+		fprintf(stderr, "RING[%-50s] ERROR failed to open FMADRing file errno:%i %s\n",  Path, errno, strerror(errno));
+		return -1;
+	}
+
+	// map it
+	u8* Map = mmap64(0, FMADRING_MAPSIZE, PROT_READ, MAP_SHARED, fd, 0);
+	if (Map == (u8*)-1)
+	{
+		fprintf(stderr, "RING[%-50s] ERROR failed to map RING (read only)\n", Path);
+		return -1;	
+	}
+
+	fFMADRingHeader_t* RING = (fFMADRingHeader_t*)Map;
+
+	// version wrong then force reset
+	if (RING->Version != FMADRING_VERSION)
+	{
+		fprintf(stderr, "RING[%-50s] ERROR version wrong\n", Path);
+		return -1;
+	}
+
+	// check everything matches 
+	assert(RING->Size 		== sizeof(fFMADRingHeader_t)); 
+	assert(RING->SizePacket	== sizeof(fFMADRingPacket_t)); 
+	assert(RING->Depth 		== FMADRING_ENTRYCNT); 
+	assert(RING->Mask		== FMADRING_ENTRYCNT - 1); 
+
+	fprintf(stderr, "RING[%-50s] Status GOOD\n", Path);
+
+	// update files
+	if (pfd) 	pfd[0] 		= fd;
+	if (pRing) 	pRing[0] 	= RING;
+
+	return 0;
+}
+
 
 //---------------------------------------------------------------------------------------------
 // write packet 
@@ -320,7 +373,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 		u64 dTSC = (rdtsc() - TS0);
 		if (tsc2ns(dTSC) > RING->TxTimeout)
 		{
-			fprintf(stderr, "ERROR[%s]: RING wait for drain timeout %lli > %lli\n", RING->Path, tsc2ns(dTSC), RING->TxTimeout);
+			fprintf(stderr, "RING[%-50s] ERROR RING wait for drain timeout %lli > %lli\n", RING->Path, tsc2ns(dTSC), RING->TxTimeout);
 			return -1;
 		}
 	}
@@ -342,6 +395,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 	return LengthCapture;
 }
 
+
 //---------------------------------------------------------------------------------------------
 // send EOF marker 
 static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
@@ -358,7 +412,7 @@ static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
 		u64 dTSC = (rdtsc() - TS0);
 		if (tsc2ns(dTSC) > RING->TxTimeout)
 		{
-			fprintf(stderr, "ERROR[%s]: RING wait for drain timeout EOF %lli %lli\n", RING->Path, tsc2ns(dTSC), RING->TxTimeout);
+			fprintf(stderr, "RING[%-50s] ERROR: RING wait for drain timeout EOF %lli %lli\n", RING->Path, tsc2ns(dTSC), RING->TxTimeout);
 			return -1;
 		}
 	}
@@ -382,13 +436,13 @@ static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
 //---------------------------------------------------------------------------------------------
 // get a packet non-zero copy way but simple interface 
 static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING, 
-										bool 		IsWait,
-										u64*		pTS,	
-										u32*		pLengthWire,	
-										u32*		pLengthCapture,	
-										u32*		pPort,	
-										void*		Payload	
-									) 
+											bool IsWait,
+											u64*		pTS,	
+											u32*		pLengthWire,	
+											u32*		pLengthCapture,	
+											u32*		pPort,	
+											void*		Payload	
+										) 
 {
 	fFMADRingPacket_t* Pkt = NULL;
 	do 
