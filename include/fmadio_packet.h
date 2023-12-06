@@ -84,7 +84,6 @@ static void ndelay(u64 ns)
 
 #endif
 
-
 //---------------------------------------------------------------------------------------------
 
 #define FMADRING_VERSION		0x00000100			// ring version 
@@ -128,17 +127,23 @@ typedef struct fFMADRingHeader_t
 	u32				IsTxFlowControl;				// tx has flow control enabled 
 	u64				TxTimeout;						// tx maximum timeout to wait
 
-	u8				align0[4096-4*4-3*8-128];		// keep header/put/get all on seperate 4K pages
+	u64				PendingB;						// number of bytes pending (on the Put side)
+
+	u8				align0[4096-4*4-4*8-128];		// keep header/put/get all on seperate 4K pages
 
 	//--------------------------------------------------------------------------------	
 	
 	volatile s64	Put;							// write pointer (not maseked)
-	u8				align1[4096-1*8];				// keep header/put/get all on seperate 4K pages
+	volatile u64	PutByte;						// total number of bytes 
+	volatile u64	PutPktTS;						// pcap timestamp of last put packet 
+	u8				align1[4096-3*8];				// keep header/put/get all on seperate 4K pages
 
 	//--------------------------------------------------------------------------------	
 
 	volatile s64	Get;							// read pointer	(not maseked)
-	u8				align2[4096-1*8];				// keep header/put/get all on seperate 4K pages
+	volatile u64	GetByte;						// read total bytes 
+	volatile u64	GetPktTS;						// pcap tiemstamp of last read packet 
+	u8				align2[4096-3*8];				// keep header/put/get all on seperate 4K pages
 
 	fFMADRingPacket_t	Packet[FMADRING_ENTRYCNT];	// actual ring size does not need to be that deep
 
@@ -391,6 +396,8 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 
 	// publish 
 	RING->Put 				+= 1;
+	RING->PutByte 			+= LengthCapture;
+	RING->PutPktTS 			= TS;
 
 	return LengthCapture;
 }
@@ -429,9 +436,10 @@ static inline int FMADPacket_SendEOFV1(	fFMADRingHeader_t* 	RING, u64 TS)
 
 	// publish 
 	RING->Put 				+= 1;
+	RING->PutPktTS			= TS;
+
 	return 0; 
 }
-
 
 //---------------------------------------------------------------------------------------------
 // get a packet non-zero copy way but simple interface 
@@ -481,9 +489,44 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	//sfence();
 
 	// next
-	RING->Get += 1;
+	RING->Get 		+= 1;
+	RING->GetByte 	+= Pkt->LengthCapture;
+	RING->GetPktTS	= Pkt->TS; 
 
 	return Pkt->LengthCapture;
+}
+
+//---------------------------------------------------------------------------------------------
+// set/get the pending bytes 
+static inline void FMADPacket_PendingByteSet(	fFMADRingHeader_t* RING, u64 PendingB)
+{
+	RING->PendingB = PendingB;
+}
+static inline u64 FMADPacket_PendingByteGet(	fFMADRingHeader_t* RING)
+{
+	return RING->PendingB;
+}
+
+//---------------------------------------------------------------------------------------------
+// get total byte counts
+static inline u64 FMADPacket_TotaBytePut( fFMADRingHeader_t* RING)
+{
+	return RING->PutByte;
+}
+static inline u64 FMADPacket_TotaByteGet( fFMADRingHeader_t* RING)
+{
+	return RING->GetByte;
+}
+
+//---------------------------------------------------------------------------------------------
+// get timestamp of last Put and Get packet 
+static inline u64 FMADPacket_PktTSPut( fFMADRingHeader_t* RING)
+{
+	return RING->PutPktTS;
+}
+static inline u64 FMADPacket_PktTSGet( fFMADRingHeader_t* RING)
+{
+	return RING->GetPktTS;
 }
 
 //---------------------------------------------------------------------------------------------
