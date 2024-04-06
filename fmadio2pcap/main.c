@@ -151,6 +151,7 @@ int main(int argc, char* argv[])
 
 	u64 TotalPkt 	= 0;
 	u64 TotalByte 	= 0;
+	u64 TotalPktFCS	= 0;			// total number of packets with FCS errors
 
 	u32 LastSec		= 0;
 	u64 LastTS		= 0;
@@ -162,12 +163,20 @@ int main(int argc, char* argv[])
 		u64 TS;
 		PCAPPacket_t* Pkt	= (PCAPPacket_t*)PktBuffer;
 
+		u32 PktFlag = 0;
+
 		// fetch packet from ring without blocking
-		int ret = FMADPacket_RecvV1(s_RING, false, &TS, &Pkt->LengthWire, &Pkt->LengthCapture, NULL, Pkt + 1);
+		int ret = FMADPacket_RecvV1(s_RING, false, &TS, &Pkt->LengthWire, &Pkt->LengthCapture, NULL, &PktFlag, Pkt + 1);
 
 		// if it has valid data
 		if (ret > 0)
 		{
+			// count flaged FCS packets
+			if (PktFlag & FMADRING_FLAG_FCSERR)
+			{
+				TotalPktFCS++;
+			}
+
 			// santize it
 			assert(Pkt->LengthCapture > 0);	
 			assert(Pkt->LengthCapture < 16*1024);	
@@ -203,7 +212,7 @@ int main(int argc, char* argv[])
 	fflush(stdout);
 
 	// summary stats 
-	fprintf(stderr, "TotalPkt: %lli TotalByte:%lli\n", TotalPkt, TotalByte);
+	fprintf(stderr, "TotalPkt: %lli TotalByte:%lli TotalFCSError:%lli\n", TotalPkt, TotalByte, TotalPktFCS);
 
 	return 0;
 }
