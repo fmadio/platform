@@ -268,7 +268,8 @@ int main(int argc, char* argv[])
 			TS,
 			Pkt->LengthWire,
 			Pkt->LengthCapture,
-			(u32)-1, /* port argument goes unused */
+			(u32)0, 				// assume port 0 
+			(u32)0, 				// packet flag
 			Pkt + 1);
 
 		PCAPFile->TS = TS;

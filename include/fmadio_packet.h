@@ -92,6 +92,7 @@ static void ndelay(u64 ns)
 #define FMADRING_ENTRYCNT		(1*1024)			// number of entries in the ring 
 
 #define FMADRING_FLAG_EOF		(1<<0)				// end of file exit
+#define FMADRING_FLAG_FCSERR	(1<<1)				// packet has an FCS error 
 
 typedef struct fFMADRingPacket_t
 {
@@ -363,6 +364,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 										u32 				LengthWire,
 										u32 				LengthCapture,
 										u32 				Port,
+										u32					Flag,
 										void*	 			Payload
 									)
 {
@@ -389,7 +391,7 @@ static inline int FMADPacket_SendV1(	fFMADRingHeader_t* 	RING,
 	FPkt->LengthWire		= LengthWire;
 	FPkt->LengthCapture		= LengthCapture;
 	FPkt->Port				= 0; 
-	FPkt->Flag				= 0; 
+	FPkt->Flag				= Flag; 
 	memcpy(&FPkt->Payload[0], Payload, LengthCapture);
 
 	sfence();
