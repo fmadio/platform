@@ -451,6 +451,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 											u32*		pLengthWire,	
 											u32*		pLengthCapture,	
 											u32*		pPort,	
+											u32*		pFlag,	
 											void*		Payload	
 										) 
 {
@@ -486,6 +487,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 	if (pLengthWire) 	pLengthWire[0] 		= Pkt->LengthWire;
 	if (pLengthCapture) pLengthCapture[0] 	= Pkt->LengthCapture;
 	if (pPort)			pPort[0]			= Pkt->Port;
+	if (pFlag)			pFlag[0]			= Pkt->Flag;
 	if (Payload)		memcpy(Payload, Pkt->Payload, Pkt->LengthCapture);
 
 	//sfence();
