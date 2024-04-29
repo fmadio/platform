@@ -270,6 +270,7 @@ int main(int argc, char* argv[])
 			Pkt->LengthCapture,
 			(u32)0, 				// assume port 0 
 			(u32)0, 				// packet flag
+			(u64)0,					// no storage ID
 			Pkt + 1);
 
 		PCAPFile->TS = TS;
