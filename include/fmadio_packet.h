@@ -515,7 +515,7 @@ static inline int FMADPacket_RecvV1(	fFMADRingHeader_t* RING,
 									) 
 {
 
-	FMADPacket_RecvV1a(RING, IsWait, pTS, pLengthWire, pLengthCapture, pPort, pFlag, NULL, Payload);
+	return FMADPacket_RecvV1a(RING, IsWait, pTS, pLengthWire, pLengthCapture, pPort, pFlag, NULL, Payload);
 }
 
 
