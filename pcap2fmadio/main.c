@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
 	int PFD = -1;
 	fFMADRingHeader_t* Ring = NULL;
 	
-	int Result = FMADPacket_OpenTx(&PFD, &Ring, false, RingPath, false, 1e6);
+	int Result = FMADPacket_OpenTx(&PFD, &Ring, false, RingPath, true, 1e6);
 
 	if (Result < 0)
 		return 3;
