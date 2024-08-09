@@ -229,6 +229,10 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 
 		// copy path for debug 
 		strncpy(RING->Path, Path, sizeof(RING->Path));
+
+		// fixed settings
+		RING->IsTxFlowControl	= IsFlowControl;	
+		RING->TxTimeout			= TimeoutNS;	
 	}
 
 	// check everything matches 
@@ -240,9 +244,6 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	fprintf(stderr, "RING[%-50s] Put:%llx %llx %p\n", RING->Path, RING->Put, RING->Put & RING->Mask, &RING->Put);
 	fprintf(stderr, "RING[%-50s] Get:%llx %llx %p\n", RING->Path, RING->Get, RING->Get & RING->Mask, &RING->Get);
 
-	// settings
-	RING->IsTxFlowControl	= IsFlowControl;	
-	RING->TxTimeout			= TimeoutNS;	
 
 	// update files
 	if (pfd) 	pfd[0] 		= fd;
