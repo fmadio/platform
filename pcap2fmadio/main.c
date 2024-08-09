@@ -184,7 +184,8 @@ int main(int argc, char* argv[])
 	int CPU = -1;
 	u8* RingPath = NULL;
 
-	u64 TxTimeoutNS = 30e6;				// default to 30sec timeout
+	bool EnableEOFPacket	= true; 	// send EOF packet at the end of the file
+	u64 TxTimeoutNS 		= 30e6;		// default to 30sec timeout
 
 	for (int i = 0; i < argc; ++i)
 	{
@@ -213,6 +214,12 @@ int main(int argc, char* argv[])
 			CPU = atoi(argv[i + 1]);
 			fprintf(stderr, "Will pin thread to CPU %i.\n", CPU);
 			i += 1;
+		}
+		// disables sending the EOF packet down the ring
+		else if (strcmp(argv[i], "--disable-eof") == 0)
+		{
+			fprintf(stderr, "Disable EOF packet\n");
+			EnableEOFPacket = false;
 		}
 		else if (strcmp(argv[i], "--help") == 0)
 		{
@@ -254,17 +261,26 @@ int main(int argc, char* argv[])
 
 	while (true)
 	{
+		// fetch from pcap file
 		PCAPPacket_t* Pkt = PCAP_Read(PCAPFile);
 
+		// error condition or end of the pcap 
 		if (Pkt == NULL)
 		{
-			FMADPacket_SendEOFV1(Ring, PCAPFile->TS);
+			// send EOF packet down the ring, this signals the peer to exit
+			if (EnableEOFPacket)
+			{
+				FMADPacket_SendEOFV1(Ring, PCAPFile->TS);
+			}
+
 			fprintf(stderr, "Reached end of PCAP file.\n");
 			return 0;
 		}
 
+		// convert timestamp to nanos
 		u64 TS = PCAP_TimeStamp(Pkt, TimeScale, 0 /* No time zone offset yet */);
 
+		// send down the ring
 		FMADPacket_SendV1(
 			Ring,
 			TS,
