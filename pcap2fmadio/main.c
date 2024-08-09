@@ -184,6 +184,8 @@ int main(int argc, char* argv[])
 	int CPU = -1;
 	u8* RingPath = NULL;
 
+	u64 TxTimeoutNS = 30e6;				// default to 30sec timeout
+
 	for (int i = 0; i < argc; ++i)
 	{
 		if (strcmp(argv[i], "-i") == 0)
@@ -245,7 +247,7 @@ int main(int argc, char* argv[])
 	int PFD = -1;
 	fFMADRingHeader_t* Ring = NULL;
 	
-	int Result = FMADPacket_OpenTx(&PFD, &Ring, false, RingPath, true, 1e6);
+	int Result = FMADPacket_OpenTx(&PFD, &Ring, false, RingPath, false, TxTimeoutNS);
 
 	if (Result < 0)
 		return 3;
