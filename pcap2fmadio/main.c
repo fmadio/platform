@@ -50,6 +50,8 @@ typedef struct
 
 } PCAPFile_t;
 
+u32 g_Verbose = 0;
+
 static inline PCAPFile_t* PCAP_Open(u64* PCAPTimeScale)
 {
 	PCAPFile_t* F = (PCAPFile_t*)malloc( sizeof(PCAPFile_t) );
@@ -185,6 +187,7 @@ int main(int argc, char* argv[])
 	u8* RingPath = NULL;
 
 	bool EnableEOFPacket	= true; 	// send EOF packet at the end of the file
+	bool SendEOFPacket		= false; 	// send an EOF packet only 
 	u64 TxTimeoutNS 		= 30e6;		// default to 30sec timeout
 
 	for (int i = 0; i < argc; ++i)
@@ -193,8 +196,7 @@ int main(int argc, char* argv[])
 		{
 			if ((i + 1) >= argc)
 			{
-				fprintf(stderr,
-					"argument `-i` expects a following file path argument");
+				fprintf(stderr, "argument `-i` expects a following file path argument");
 
 				return 1;
 			}
@@ -202,16 +204,18 @@ int main(int argc, char* argv[])
 			RingPath = argv[i + 1];
 			i += 1;
 		}
+		else if (strcmp(argv[i], "-v") == 0)
+		{
+			g_Verbose = 1;
+			fprintf(stderr, "Verbose mode\n");
+		}
 		else if (strcmp(argv[i], "--cpu") == 0)
 		{
 			if ((i + 1) >= argc)
 			{
-				fprintf(stderr,
-					"argument `--cpu` expects a following integer argument");
+				fprintf(stderr, "argument `--cpu` expects a following integer argument");
 				return 1;
 			}
-
-			CPU = atoi(argv[i + 1]);
 			fprintf(stderr, "Will pin thread to CPU %i.\n", CPU);
 			i += 1;
 		}
@@ -221,6 +225,13 @@ int main(int argc, char* argv[])
 			fprintf(stderr, "Disable EOF packet\n");
 			EnableEOFPacket = false;
 		}
+		// send an EOF only 
+		else if (strcmp(argv[i], "--send-eof") == 0)
+		{
+			fprintf(stderr, "Send EOF packet only\n");
+			SendEOFPacket 	= true;
+		}
+
 		else if (strcmp(argv[i], "--help") == 0)
 		{
 			PrintHelp();
@@ -245,6 +256,22 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	// send an EOF only .e.g. after a number of pcaps have been sent
+	if (SendEOFPacket)
+	{
+		// open the ring
+		int PFD;
+		fFMADRingHeader_t* Ring;
+		int Result = FMADPacket_OpenTx(&PFD, &Ring, false, RingPath, false, TxTimeoutNS);
+		if (Result < 0) return 3;
+
+		// send eof
+		FMADPacket_SendEOFV1(Ring, Ring->PutPktTS);
+
+		fprintf(stderr, "sent EOF packet only PuTS:%lli GetTS:%lli\n", Ring->PutPktTS, Ring->GetPktTS );
+		return 0;
+	}
+
 	u64 TimeScale;
 	PCAPFile_t* PCAPFile = PCAP_Open(&TimeScale);
 
@@ -255,10 +282,12 @@ int main(int argc, char* argv[])
 	fFMADRingHeader_t* Ring = NULL;
 	
 	int Result = FMADPacket_OpenTx(&PFD, &Ring, false, RingPath, false, TxTimeoutNS);
+	if (Result < 0) return 3;
 
-	if (Result < 0)
-		return 3;
+	u64 TotalPkt 	= 0;
+	u64 TotalByte 	= 0;
 
+	u64 NextPrintTSC = rdtsc() + ns2tsc(1e9);
 	while (true)
 	{
 		// fetch from pcap file
@@ -292,6 +321,16 @@ int main(int argc, char* argv[])
 			Pkt + 1);
 
 		PCAPFile->TS = TS;
+
+		if (g_Verbose > 0)
+		{
+			u64 TSC = rdtsc();
+			if (TSC > NextPrintTSC)
+			{
+				fprintf(stderr, "TotalPacket:%16lli TotalByte:%16lli\n", TotalPkt, TotalByte);
+				NextPrintTSC = rdtsc() + ns2tsc(1e9);
+			}
+		}
 	}
 
 	return 0;
