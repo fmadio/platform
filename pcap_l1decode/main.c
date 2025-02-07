@@ -67,23 +67,30 @@ static inline u64 swap64(const u64 a)
 
 // L1 encapsulation format
 //
-//  typedef struct packed {
-//    logic [23:0] debug;
-//    logic [7:0]  fifo_errors;
-//    logic [63:0] fifo_overflow_cnt;
-//    logic [63:0] fifo_underflow_cnt;
-//    logic [7:0]  lock_status;
-//    logic [79:0] timestamp;
-//    logic [63:0] idle_cnt;
-//    logic [63:0] idle_cnt_total;
-//    logic [63:0] eof_cnt;
-//    logic [63:0] seq_no;
-//    logic [7:0]  lane_no;
-//
-//  } metadata_t;
+// typedef struct packed {
+//     logic [23:0] debug;
+//     logic [7:0]  fifo_errors;
+//     logic [7:0]  fifo_overflow_cnt;
+//     logic [7:0]  fifo_underflow_cnt;
+//     logic [7:0]  lock_status;
+//     logic [79:0] timestamp;
+//     logic [63:0] idle_cnt;
+//     logic [63:0] idle_cnt_total;
+//     logic [63:0] eof_cnt;
+//     logic [63:0] seq_no;
+//     logic [7:0]  lane_no;
+//     logic [15:0] ethertype;
+//     logic [47:0] src_mac;
+//     logic [47:0] dst_mac;
+// 
+//   } metadata_t;
+
 
 typedef struct
 {
+	u8				mac_dst[6];
+	u8				mac_src[6];
+	u16				ethertype;					// 0xfeed
 	u8				lane_no;					// port the traffic was captured on
 	u64				seq_no;						// L1 block data was captured on
 
@@ -96,8 +103,8 @@ typedef struct
 
 	u8				lock_status;				// internal
 
-	u64				fifo_underflow_cnt;			// internal fifo underflow counter 
-	u64				fifo_overflow_cnt;			// internal fifo overflow counter
+	u8				fifo_underflow_cnt;			// internal fifo underflow counter 
+	u8				fifo_overflow_cnt;			// internal fifo overflow counter
 
 	u8				fifo_errors;				// internal fifo flags
 
