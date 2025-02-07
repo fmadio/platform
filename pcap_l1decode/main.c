@@ -118,15 +118,15 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 	u64 L1TS = (Header->timestamp0 <<16) | Header->timestamp1;
 
-	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%8lli Overflow:%8lli FIFOError:%08x\n", 
+	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x\n", 
 										Header->lane_no, 
 										swap64(Header->seq_no), 
 										swap64(Header->idle_cnt), 
 										swap64(Header->idle_cnt_total), 
 										swap64(Header->eof_cnt), 
 										L1TS,
-										swap64(Header->fifo_underflow_cnt),
-										swap64(Header->fifo_overflow_cnt),
+										Header->fifo_underflow_cnt,
+										Header->fifo_overflow_cnt,
 										Header->fifo_errors
 
 	); 
