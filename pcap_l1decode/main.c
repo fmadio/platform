@@ -47,6 +47,7 @@ static bool		g_Verbose			= false;				// verbose output
 double TSC2Nano = 0;
 
 static u64		s_LastSeqNo[32];							// last sequence number per lane
+static u64		s_TotalGap			= 0;					// total number of gaps
 
 //-------------------------------------------------------------------------------------------------
 // misc utils
@@ -125,13 +126,15 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	s64 dSeq = Header->seq_no - s_LastSeqNo[ Header->lane_no ];
 
 	u8* dSeqStr = "  ";
-	if (dSeq != 1)
+	// seq number will not wrap around in any real use case
+	if ((dSeq != 1) && (s_LastSeqNo[Header->lane_no] != 0))
 	{
+		s_TotalGap += 1;
 		dSeqStr = "GAP";
 		fprintf(stderr, "Lane:%3i SeqNo:%016llx Gap count: %lli\n", Header->lane_no, Header->seq_no, dSeq); 
 	}
 
-	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x %s\n", 
+	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
 										Header->lane_no, 
 										Header->seq_no, 
 										Header->idle_cnt, 
@@ -141,6 +144,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 										Header->fifo_underflow_cnt,
 										Header->fifo_overflow_cnt,
 										Header->fifo_errors,
+										s_TotalGap,
 										dSeqStr
 
 	); 
@@ -322,6 +326,9 @@ int main(int argc, char* argv[])
 		printf("invalid magic: %08x\n", Header.Magic);	
 		assert(false);
 	}
+
+	// reset seq number check
+	memset(s_LastSeqNo, 0, sizeof(s_LastSeqNo) );
 
 	u64 LastTSC 	= rdtsc();
 	u64 LastByte 	= 0;
