@@ -333,9 +333,9 @@ int main(int argc, char* argv[])
 		if (s_IsPktPCAP)
 		{
 			int rlen = fread(Buffer + BufferPos, 1, BufferMax - BufferPos, stdin);	
-			if (rlen < 0)
+			if (rlen <= 0)
 			{
-				printf("data end\n");
+				printf("no more data\n");
 				break;
 			}
 
