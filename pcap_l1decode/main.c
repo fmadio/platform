@@ -31,6 +31,7 @@
 
 static bool		s_IsPktPCAP			= true;					// input format is a PCAP
 static bool		s_IsPktFMAD			= false;				// input format is a FMAD Chunked 
+static bool		s_IsPrintXGMII		= true;					// by default print XGMII traffic
 
 static u64 		s_TScale 			= 0;					// timescale of the pcap
 
@@ -44,6 +45,8 @@ static u64		s_TotalWireByte		= 0;					// total bytes on the wire
 static bool		g_Verbose			= false;				// verbose output
 
 double TSC2Nano = 0;
+
+static u64		s_LastSeqNo[32];							// last sequence number per lane
 
 //-------------------------------------------------------------------------------------------------
 // misc utils
@@ -118,52 +121,69 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 	u64 L1TS = (Header->timestamp0 <<16) | Header->timestamp1;
 
-	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x\n", 
+	// check sequence numbers
+	s64 dSeq = Header->seq_no - s_LastSeqNo[ Header->lane_no ];
+
+	u8* dSeqStr = "  ";
+	if (dSeq != 1)
+	{
+		dSeqStr = "GAP";
+		fprintf(stderr, "Lane:%3i SeqNo:%016llx Gap count: %lli\n", Header->lane_no, Header->seq_no, dSeq); 
+	}
+
+	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x %s\n", 
 										Header->lane_no, 
-										swap64(Header->seq_no), 
-										swap64(Header->idle_cnt), 
-										swap64(Header->idle_cnt_total), 
-										swap64(Header->eof_cnt), 
+										Header->seq_no, 
+										Header->idle_cnt, 
+										Header->idle_cnt_total, 
+										Header->eof_cnt, 
 										L1TS,
 										Header->fifo_underflow_cnt,
 										Header->fifo_overflow_cnt,
-										Header->fifo_errors
+										Header->fifo_errors,
+										dSeqStr
 
 	); 
+	s_LastSeqNo[ Header->lane_no ] = Header->seq_no;
 
 
-	// ctrl is 64 words @ 8 bits
-	// data is 64 words @ 64 bits
-	u8* C8 = (u8*)(Header + 1);
-	u8* D8 = (u8*)(C8     + 64);
-
-	for (int w=0; w < 64; w++)
+	// print traffic
+	if (s_IsPrintXGMII)
 	{
-		u8* sof = " ";
-		u8* eof = " ";
+		// ctrl is 64 words @ 8 bits
+		// data is 64 words @ 64 bits
+		u8* C8 = (u8*)(Header + 1);
+		u8* D8 = (u8*)(C8     + 64);
 
-		for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfb)) sof = "S";
-		for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfd)) eof = "E";
+		for (int w=0; w < 64; w++)
+		{
+			u8* sof = " ";
+			u8* eof = " ";
 
-		printf("%s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfb)) sof = "S";
+			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfd)) eof = "E";
 
-				sof,
-				eof,
+			printf("%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
 
-				C8[0],
+					Header->lane_no,
+					sof,
+					eof,
 
-				D8[0],
-				D8[1],
-				D8[2],
-				D8[3],
-				D8[4],
-				D8[5],
-				D8[6],
-				D8[7]
-		);
-		C8 += 1;
-		D8 += 8;
-	}	
+					C8[0],
+
+					D8[0],
+					D8[1],
+					D8[2],
+					D8[3],
+					D8[4],
+					D8[5],
+					D8[6],
+					D8[7]
+			);
+			C8 += 1;
+			D8 += 8;
+		}	
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -239,6 +259,11 @@ int main(int argc, char* argv[])
 		{
 			g_Verbose = true;
 			fprintf(stderr, "Verbose output\n");
+		}
+		else if (strcmp(argv[i], "--disable-xgmii") == 0)
+		{
+			s_IsPrintXGMII = false;
+			fprintf(stderr, "Disable XGMII Printout\n");
 		}
 		else
 		{
