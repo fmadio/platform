@@ -67,6 +67,28 @@ static inline u64 swap64(const u64 a)
 	return swap32(a>>32ULL) | ( (u64)swap32(a) << 32ULL); 
 }
 
+static inline void  ns2str(u8* Str, u64 TS) 
+{
+
+	time_t t0 = TS / 1e9;
+
+	struct tm* t = localtime(&t0);
+
+	u32 year	= 1900 + t->tm_year;
+	u32 month	= 1 + t->tm_mon;
+	u32 day		= t->tm_mday;
+	u32 hour	= t->tm_hour;
+	u32 min		= t->tm_min;
+	u32 sec0	= t->tm_sec;
+
+	u64 sec = TS % ((u64)1e9);	
+	int msec = sec / 1000000ULL; 
+	int usec = (sec - msec*1000000ULL)/ 1000ULL; 
+	int nsec = (sec - msec*1000000ULL- usec*1000ULL);
+
+	sprintf(Str, "%04i%02i%02i_%02i%02i%02i.%03i_%03i_%03i", year, month, day, hour, min, sec0, msec, usec, nsec);
+}
+
 //-------------------------------------------------------------------------------------------------
 
 // L1 encapsulation format
@@ -154,6 +176,9 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	// print traffic
 	if (s_IsPrintXGMII)
 	{
+		u8 HeaderStr[128];
+		ns2str(HeaderStr, TS); 
+
 		// ctrl is 64 words @ 8 bits
 		// data is 64 words @ 64 bits
 		u8* C8 = (u8*)(Header + 1);
@@ -167,7 +192,10 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfb)) sof = "S";
 			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfd)) eof = "E";
 
-			printf("%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+			printf("%s %3i : %i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+
+					HeaderStr,
+					w,
 
 					Header->lane_no,
 					sof,
