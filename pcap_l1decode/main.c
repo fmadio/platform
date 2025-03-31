@@ -192,7 +192,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfb)) sof = "S";
 			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfd)) eof = "E";
 
-			printf("%s %3i : %i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+			printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
 
 					HeaderStr,
 					w,
