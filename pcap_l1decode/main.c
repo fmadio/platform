@@ -179,6 +179,25 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 		u8 HeaderStr[128];
 		ns2str(HeaderStr, TS); 
 
+		if (Header->idle_cnt > 0)
+		{
+			printf("%s %3i : cap%i %s %s %02s %s (rep %i)\n",
+
+					HeaderStr,
+					0,
+
+					Header->lane_no,
+					" ",
+					" ",
+
+					"--",	
+
+					"----------------",
+
+					Header->idle_cnt
+			);
+		}
+
 		// ctrl is 64 words @ 8 bits
 		// data is 64 words @ 64 bits
 		u8* C8 = (u8*)(Header + 1);
