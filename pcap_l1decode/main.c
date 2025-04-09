@@ -42,6 +42,9 @@ static u64		s_TotalPacket		= 0;					// total packet count
 static u64		s_TotalCaptureByte	= 0;					// total bytes captured 
 static u64		s_TotalWireByte		= 0;					// total bytes on the wire 
 
+static u64		s_TotalSOFCnt[4]	= {0, 0, 0, 0};			// total number of SOFs found
+static u64		s_TotalEOFCnt[4]	= {0, 0, 0, 0};			// total number of EOFs found
+
 static bool		g_Verbose			= false;				// verbose output
 
 double TSC2Nano = 0;
@@ -174,14 +177,15 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 
 	// print traffic
-	if (s_IsPrintXGMII)
 	{
 		u8 HeaderStr[128];
 		ns2str(HeaderStr, TS); 
 
 		if (Header->idle_cnt > 0)
 		{
-			printf("%s %3i : cap%i %s %s %02s %s (rep %i)\n",
+			if (s_IsPrintXGMII)
+			{
+				printf("%s %3i : cap%i %s %s %02s %s (rep %i)\n",
 
 					HeaderStr,
 					0,
@@ -195,7 +199,8 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 					"----------------",
 
 					Header->idle_cnt
-			);
+				);
+			}
 		}
 
 		// ctrl is 64 words @ 8 bits
@@ -208,29 +213,40 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 			u8* sof = " ";
 			u8* eof = " ";
 
-			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfb)) sof = "S";
-			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfd)) eof = "E";
+			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfb))
+			{
+				sof = "S";
+				s_TotalSOFCnt[Header->lane_no]++;
+			}
+			for (int i=0; i < 8; i++) if (( (C8[0] >> i) & 1)  && (D8[i] == 0xfd))
+			{
+				eof = "E";
+				s_TotalEOFCnt[Header->lane_no]++;
+			}
 
-			printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+			if (s_IsPrintXGMII)
+			{
+				printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
 
-					HeaderStr,
-					w,
+						HeaderStr,
+						w,
 
-					Header->lane_no,
-					sof,
-					eof,
+						Header->lane_no,
+						sof,
+						eof,
 
-					C8[0],
+						C8[0],
 
-					D8[0],
-					D8[1],
-					D8[2],
-					D8[3],
-					D8[4],
-					D8[5],
-					D8[6],
-					D8[7]
-			);
+						D8[0],
+						D8[1],
+						D8[2],
+						D8[3],
+						D8[4],
+						D8[5],
+						D8[6],
+						D8[7]
+				);
+			}
 			C8 += 1;
 			D8 += 8;
 		}	
@@ -445,6 +461,12 @@ int main(int argc, char* argv[])
 			LastPacket = s_TotalPacket;
 			LastTSC  = TSC;
 		}
+	}
+
+	for (int p=0; p < 4; p++)
+	{
+
+		printf("cap%i : SOFCnt %10lli EOFCnt: %10lli Delta:%8lli\n", p, s_TotalSOFCnt[p],  s_TotalEOFCnt[p], s_TotalSOFCnt[p] - s_TotalEOFCnt[p] );
 	}
 
 	return 0;
