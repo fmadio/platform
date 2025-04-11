@@ -70,6 +70,22 @@ static inline u64 swap64(const u64 a)
 	return swap32(a>>32ULL) | ( (u64)swap32(a) << 32ULL); 
 }
 
+static inline u32 bitswap8(const u32 a)
+{
+	u32 b = 0;
+
+	b |= ((a >> 0) & 1 ) << 7;		
+	b |= ((a >> 1) & 1 ) << 6;		
+	b |= ((a >> 2) & 1 ) << 5;		
+	b |= ((a >> 3) & 1 ) << 4;		
+	b |= ((a >> 4) & 1 ) << 3;		
+	b |= ((a >> 5) & 1 ) << 2;		
+	b |= ((a >> 6) & 1 ) << 1;		
+	b |= ((a >> 7) & 1 ) << 0;		
+
+	return b;
+}
+
 static inline void  ns2str(u8* Str, u64 TS) 
 {
 
@@ -235,7 +251,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 						sof,
 						eof,
 
-						C8[0],
+						bitswap8(C8[0]),
 
 						D8[0],
 						D8[1],
