@@ -112,6 +112,7 @@ static inline void  ns2str(u8* Str, u64 TS)
 
 // L1 encapsulation format
 //
+// 2025/03: origial header
 // typedef struct packed {
 //     logic [23:0] debug;
 //     logic [7:0]  fifo_errors;
@@ -129,7 +130,28 @@ static inline void  ns2str(u8* Str, u64 TS)
 //     logic [47:0] dst_mac;
 // 
 //   } metadata_t;
-
+//
+// 2025/4/24 : reduce compression coutners 
+//             (from FW 10842+)
+//
+// typedef struct packed {
+//    logic [23:0] debug;
+//    logic [7:0]  fifo_errors;
+//    logic [7:0]  fifo_overflow_cnt;
+//    logic [7:0]  fifo_underflow_cnt;
+//    logic [7:0]  lock_status;
+//    logic [79:0] timestamp;
+//    logic [63:0] unused;
+//    logic [31:0] compress_cnt;
+//    logic [63:0] compress_total;
+//    logic [31:0] compress_data;
+//    logic [63:0] seq_no;
+//    logic [7:0]  lane_no;
+//    logic [15:0] ethertype;
+//    logic [47:0] src_mac;
+//    logic [47:0] dst_mac;
+//
+//  } metadata_t;
 
 typedef struct
 {
@@ -139,9 +161,10 @@ typedef struct
 	u8				lane_no;					// port the traffic was captured on
 	u64				seq_no;						// L1 block data was captured on
 
-	u64				eof_cnt;					// End of Frame counter
-	u64				idle_cnt_total;				// total number of idles seen
-	u64				idle_cnt;					// number of idels before this block
+	u32				compress_data;
+	u64				compress_total;
+	u32				compress_cnt;
+	u64				pad0;
 
 	u64				timestamp0;					// total of 80bits
 	u16				timestamp1;
@@ -161,6 +184,10 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 {
 	fL1Header_t* Header = (fL1Header_t*)(Payload);
 
+
+	u8 HeaderStr[128];
+	ns2str(HeaderStr, TS); 
+
 	u64 L1TS = (Header->timestamp0 <<16) | Header->timestamp1;
 
 	// check sequence numbers
@@ -172,15 +199,15 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	{
 		s_TotalGap += 1;
 		dSeqStr = "GAP";
-		fprintf(stderr, "Lane:%3i SeqNo:%016llx Gap count: %lli\n", Header->lane_no, Header->seq_no, dSeq); 
+		fprintf(stderr, "cap%i SeqNo:%016llx Gap count: %lli\n", Header->lane_no, Header->seq_no, dSeq); 
 	}
 
-	if (g_Verbose) printf("Lane:%3i SeqNo:%016llx IdleCnt:%8lli IdleTotal:%8lli EOF Cnt:%8lli Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
+	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8lli CompressWord:%08x Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
+										HeaderStr,
 										Header->lane_no, 
 										Header->seq_no, 
-										Header->idle_cnt, 
-										Header->idle_cnt_total, 
-										Header->eof_cnt, 
+										Header->compress_cnt, 
+										Header->compress_data, 
 										L1TS,
 										Header->fifo_underflow_cnt,
 										Header->fifo_overflow_cnt,
@@ -189,19 +216,18 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 										dSeqStr
 
 	); 
+
 	s_LastSeqNo[ Header->lane_no ] = Header->seq_no;
 
 
 	// print traffic
 	{
-		u8 HeaderStr[128];
-		ns2str(HeaderStr, TS); 
 
-		if (Header->idle_cnt > 0)
+		if (Header->compress_cnt > 0)
 		{
 			if (s_IsPrintXGMII)
 			{
-				printf("%s %3i : cap%i %s %s %02s %s (rep %i)\n",
+				printf("%s %3i : cap%i %s %s %02s %s (rep %i x %08x)\n",
 
 					HeaderStr,
 					0,
@@ -214,7 +240,8 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 					"----------------",
 
-					Header->idle_cnt
+					Header->compress_cnt,
+					Header->compress_data
 				);
 			}
 		}
