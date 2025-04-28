@@ -52,6 +52,8 @@ double TSC2Nano = 0;
 static u64		s_LastSeqNo[32];							// last sequence number per lane
 static u64		s_TotalGap			= 0;					// total number of gaps
 
+static u32		s_FilterPort		= (u32)-1;				// filter for a specific port
+
 //-------------------------------------------------------------------------------------------------
 // misc utils
 
@@ -202,7 +204,14 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 		fprintf(stderr, "cap%i SeqNo:%016llx Gap count: %lli\n", Header->lane_no, Header->seq_no, dSeq); 
 	}
 
-	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8lli CompressWord:%08x Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
+	// filter for specific port only
+	if (s_FilterPort != (u32)-1)
+	{
+		if (Header->lane_no != s_FilterPort) return;
+	}
+
+
+	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8i CompressWord:%08x Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
 										HeaderStr,
 										Header->lane_no, 
 										Header->seq_no, 
@@ -218,6 +227,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	); 
 
 	s_LastSeqNo[ Header->lane_no ] = Header->seq_no;
+
 
 
 	// print traffic
@@ -374,6 +384,13 @@ int main(int argc, char* argv[])
 		{
 			s_IsPrintXGMII = false;
 			fprintf(stderr, "Disable XGMII Printout\n");
+		}
+		// select a specific port only
+		else if (strcmp(argv[i], "--port") == 0)
+		{
+			s_FilterPort = atoi(argv[i+1]);
+			fprintf(stderr, "Output only cap%i\n", s_FilterPort);
+			i++;
 		}
 		else
 		{
