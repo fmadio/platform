@@ -306,21 +306,29 @@ int main(int argc, char* argv[])
 			return 0;
 		}
 
-		// convert timestamp to nanos
-		u64 TS = PCAP_TimeStamp(Pkt, TimeScale, 0 /* No time zone offset yet */);
+		// validate its a valid packet (e.g. not captured with TCPDUMP GSO GRO enabled)
+		bool IsValid = true;
+		if (Pkt->LengthCapture >= 12*102)	IsValid = false;
+		if (Pkt->LengthCapture < 60 )		IsValid = false;
 
-		// send down the ring
-		FMADPacket_SendV1(
-			Ring,
-			TS,
-			Pkt->LengthWire,
-			Pkt->LengthCapture,
-			(u32)0, 				// assume port 0 
-			(u32)0, 				// packet flag
-			(u64)0,					// no storage ID
-			Pkt + 1);
+		if (IsValid)
+		{
+			// convert timestamp to nanos
+			u64 TS = PCAP_TimeStamp(Pkt, TimeScale, 0 /* No time zone offset yet */);
 
-		PCAPFile->TS = TS;
+			// send down the ring
+			FMADPacket_SendV1(
+				Ring,
+				TS,
+				Pkt->LengthWire,
+				Pkt->LengthCapture,
+				(u32)0, 				// assume port 0 
+				(u32)0, 				// packet flag
+				(u64)0,					// no storage ID
+				Pkt + 1);
+
+			PCAPFile->TS = TS;
+		}
 
 		if (g_Verbose > 0)
 		{
