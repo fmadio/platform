@@ -32,6 +32,7 @@
 static bool		s_IsPktPCAP			= true;					// input format is a PCAP
 static bool		s_IsPktFMAD			= false;				// input format is a FMAD Chunked 
 static bool		s_IsPrintXGMII		= true;					// by default print XGMII traffic
+static bool		s_IsPrintTimestamp	= false;				// by default don't print timestamp
 
 static u64 		s_TScale 			= 0;					// timescale of the pcap
 
@@ -168,8 +169,8 @@ typedef struct
 	u32				compress_cnt;
 	u64				pad0;
 
-	u64				timestamp0;					// total of 80bits
-	u16				timestamp1;
+	u16				timestamp_frac;
+	u64				timestamp_ns;				// total of 80bits
 
 	u8				lock_status;				// internal
 
@@ -190,7 +191,10 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	u8 HeaderStr[128];
 	ns2str(HeaderStr, TS); 
 
-	u64 L1TS = (Header->timestamp0 <<16) | Header->timestamp1;
+	// stringify timestamp from L1 header metadata
+	u64 L1TS = swap64(Header->timestamp_ns);
+	u8 L1HeaderStr[128];
+	ns2str(L1HeaderStr, L1TS); 
 
 	// check sequence numbers
 	s64 dSeq = Header->seq_no - s_LastSeqNo[ Header->lane_no ];
@@ -211,13 +215,18 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	}
 
 
-	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8i CompressWord:%08x Timestamp:%16llx Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
+	// Check if the packet is a timestamp-type packet
+	bool PktHasTimestamp = (Header->lock_status >> 3) & 0x1;
+
+	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8i CompressWord:%08x PktHasTimestamp:%d Timestamp:%s.%u Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
 										HeaderStr,
 										Header->lane_no, 
 										Header->seq_no, 
 										Header->compress_cnt, 
 										Header->compress_data, 
-										L1TS,
+										PktHasTimestamp,
+										L1HeaderStr,
+										swap16(Header->timestamp_frac),
 										Header->fifo_underflow_cnt,
 										Header->fifo_overflow_cnt,
 										Header->fifo_errors,
@@ -261,6 +270,12 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 		u8* C8 = (u8*)(Header + 1);
 		u8* D8 = (u8*)(C8     + 64);
 
+		// timestamp 1 is 64 words @ 64 bits (ns)
+		// timestamp 2 is 64 words @ 16 bits (fractional)
+		u64* T_ns   = (u64*)(D8	  + 512);
+		u16* T_frac = (u16*)(T_ns + 64);
+		
+
 		for (int w=0; w < 64; w++)
 		{
 			u8* sof = " ";
@@ -279,26 +294,62 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 			if (s_IsPrintXGMII)
 			{
-				printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+				if (s_IsPrintTimestamp & PktHasTimestamp)
+				{
 
-						HeaderStr,
-						w,
+					u8 TnsStr[128];
+					ns2str(TnsStr, *T_ns); 
 
-						Header->lane_no,
-						sof,
-						eof,
+					printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x : %s.%u \n", 
 
-						bitswap8(C8[0]),
+							HeaderStr,
+							w,
 
-						D8[0],
-						D8[1],
-						D8[2],
-						D8[3],
-						D8[4],
-						D8[5],
-						D8[6],
-						D8[7]
-				);
+							Header->lane_no,
+							sof,
+							eof,
+
+							bitswap8(C8[0]),
+
+							D8[0],
+							D8[1],
+							D8[2],
+							D8[3],
+							D8[4],
+							D8[5],
+							D8[6],
+							D8[7],
+
+							TnsStr,
+							*T_frac
+
+					);
+
+					T_ns += 1;
+					T_frac += 1;
+				}
+				else {
+					printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
+
+							HeaderStr,
+							w,
+
+							Header->lane_no,
+							sof,
+							eof,
+
+							bitswap8(C8[0]),
+
+							D8[0],
+							D8[1],
+							D8[2],
+							D8[3],
+							D8[4],
+							D8[5],
+							D8[6],
+							D8[7]
+					);
+				}
 			}
 			C8 += 1;
 			D8 += 8;
@@ -319,6 +370,9 @@ static void PrintHelp(void)
 		"\n"
 		"Options:\n"
 		"\n"
+		"  --port                      : output data from a given port\n"
+		"  --disable-xgmii             : disable xgmii printout\n"
+		"  --enable-timestamp          : enable timestamp printout\n"
 		"  --help                      : print this message and then exit\n"
 		"  --version, -V               : print the program's version information and then exit\n"
 		"\n"
@@ -384,6 +438,11 @@ int main(int argc, char* argv[])
 		{
 			s_IsPrintXGMII = false;
 			fprintf(stderr, "Disable XGMII Printout\n");
+		}
+		else if (strcmp(argv[i], "--enable-timestamp") == 0)
+		{
+			s_IsPrintTimestamp = true;
+			fprintf(stderr, "Enable Timestamp Printout\n");
 		}
 		// select a specific port only
 		else if (strcmp(argv[i], "--port") == 0)
