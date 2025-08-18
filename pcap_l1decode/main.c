@@ -33,6 +33,7 @@ static bool		s_IsPktPCAP			= true;					// input format is a PCAP
 static bool		s_IsPktFMAD			= false;				// input format is a FMAD Chunked 
 static bool		s_IsPrintXGMII		= true;					// by default print XGMII traffic
 static bool		s_IsPrintTimestamp	= false;				// by default don't print timestamp
+static bool		s_IsPrintDebug		= false;				// by default don't print debug
 
 static u64 		s_TScale 			= 0;					// timescale of the pcap
 
@@ -192,7 +193,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	ns2str(HeaderStr, TS); 
 
 	// stringify timestamp from L1 header metadata
-	u64 L1TS = swap64(Header->timestamp_ns);
+	u64 L1TS = Header->timestamp_ns;
 	u8 L1HeaderStr[128];
 	ns2str(L1HeaderStr, L1TS); 
 
@@ -217,6 +218,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 	// Check if the packet is a timestamp-type packet
 	bool PktHasTimestamp = (Header->lock_status >> 3) & 0x1;
+	bool PktHasDebug     = (Header->lock_status >> 4) & 0x1;
 
 	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8i CompressWord:%08x PktHasTimestamp:%d Timestamp:%s.%u Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
 										HeaderStr,
@@ -226,7 +228,7 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 										Header->compress_data, 
 										PktHasTimestamp,
 										L1HeaderStr,
-										swap16(Header->timestamp_frac),
+										Header->timestamp_frac,
 										Header->fifo_underflow_cnt,
 										Header->fifo_overflow_cnt,
 										Header->fifo_errors,
@@ -272,8 +274,10 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 		// timestamp 1 is 64 words @ 64 bits (ns)
 		// timestamp 2 is 64 words @ 16 bits (fractional)
+		// debug is 8 words @ 64 bits (ns)
 		u64* T_ns   = (u64*)(D8	  + 512);
 		u16* T_frac = (u16*)(T_ns + 64);
+		u64* Debug  = (u64*)(T_frac + 64);
 		
 
 		for (int w=0; w < 64; w++)
@@ -354,6 +358,18 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 			C8 += 1;
 			D8 += 8;
 		}	
+
+        if (s_IsPrintDebug & PktHasDebug) {
+            for (int w=0; w < 8; w++)
+            {
+                printf("DEBUG: %016llx\n", 
+                        *Debug
+
+                );
+
+                Debug += 1;
+            }
+        }
 	}
 }
 
@@ -373,6 +389,7 @@ static void PrintHelp(void)
 		"  --port                      : output data from a given port\n"
 		"  --disable-xgmii             : disable xgmii printout\n"
 		"  --enable-timestamp          : enable timestamp printout\n"
+		"  --enable-debug              : enable debug printout\n"
 		"  --help                      : print this message and then exit\n"
 		"  --version, -V               : print the program's version information and then exit\n"
 		"\n"
@@ -443,6 +460,11 @@ int main(int argc, char* argv[])
 		{
 			s_IsPrintTimestamp = true;
 			fprintf(stderr, "Enable Timestamp Printout\n");
+		}
+		else if (strcmp(argv[i], "--enable-debug") == 0)
+		{
+			s_IsPrintDebug = true;
+			fprintf(stderr, "Enable Debug Printout\n");
 		}
 		// select a specific port only
 		else if (strcmp(argv[i], "--port") == 0)
