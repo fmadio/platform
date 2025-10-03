@@ -31,7 +31,8 @@
 
 static bool		s_IsPktPCAP			= true;					// input format is a PCAP
 static bool		s_IsPktFMAD			= false;				// input format is a FMAD Chunked 
-static bool		s_IsPrintPacket		= false;					// print the raw packet to console 
+static bool		s_IsPrintPacket		= false;				// print the raw packet to console 
+static bool		s_IsPrintXGMII		= false;				// print every xgmii cycles data 
 
 static u64 		s_TScale 			= 0;					// timescale of the pcap
 
@@ -228,18 +229,30 @@ static void GeneratePacket(Packet_t* P)
 	// invalid preamble
 	if (!IsValid)
 	{
-		fprintf(stderr, "invalid preabmel\n");
+		fprintf(stderr, "invalid preamble\n");
 	}
 
-	u32 PacketLength = P->BufferPos - 8 - 1;
+	// calculate length of the packet
+	s32 PacketLength = P->BufferPos - 8 - 1;
+
+	// if no preamble then cant output anything 
+	if (PacketLength <= 0) 
+	{
+		fprintf(stderr, "invalid packet size: %i\n", P->BufferPos);
+
+		P->InPacket 	= false;
+		P->BufferPos 	= 0;
+		return;
+	}
+
 
 	// pcap header
 	PCAPPacket_t PCAPPacket;
 
-	PCAPPacket.Sec 	= P->SOFTS / (u64)1e9;
-	PCAPPacket.NSec = P->SOFTS % (u64)1e9;
-	PCAPPacket.LengthCapture = (PacketLength);
-	PCAPPacket.LengthWire 	 = (PacketLength);
+	PCAPPacket.Sec 			= P->SOFTS / (u64)1e9;
+	PCAPPacket.NSec 		= P->SOFTS % (u64)1e9;
+	PCAPPacket.LengthCapture= PacketLength;
+	PCAPPacket.LengthWire	= PacketLength;
 	fwrite(&PCAPPacket, sizeof(PCAPPacket), 1, stdout);
 
 	// payload
@@ -252,7 +265,8 @@ static void GeneratePacket(Packet_t* P)
 
 static void ProcessXGMII(u32 PortNo, u32 Ctrl, u64 Data, u64 TS)
 {
-	//printf("cap%i %02x %016llx\n", PortNo, Ctrl, Data);
+	if (s_IsPrintXGMII) fprintf(stderr, "cap%i %02x %016llx\n", PortNo, Ctrl, Data);
+
 	assert(PortNo < 16);
 	Packet_t* P = &s_Packet[PortNo];
 
@@ -470,6 +484,20 @@ int main(int argc, char* argv[])
 			fprintf(stderr, "Output only cap%i\n", s_FilterPort);
 			i++;
 		}
+		// print packet layer1 data 
+		else if (strcmp(argv[i], "--xgmii-packet") == 0)
+		{
+			s_IsPrintPacket = true;
+			fprintf(stderr, "Print XGMII Packet Data\n");
+			i++;
+		}
+		// print very xgmii cycle 
+		else if (strcmp(argv[i], "--xgmii") == 0)
+		{
+			s_IsPrintXGMII = true;
+			fprintf(stderr, "Print XGMII stream\n");
+			i++;
+		}
 		else
 		{
 			fprintf(stderr, "Unrecognized argument: '%s'\n", argv[i]);
@@ -554,7 +582,7 @@ int main(int argc, char* argv[])
 			int rlen = fread(Buffer + BufferPos, 1, BufferMax - BufferPos, stdin);	
 			if (rlen <= 0)
 			{
-				printf("no more data\n");
+				fprintf(stderr, "no more data\n");
 				break;
 			}
 
