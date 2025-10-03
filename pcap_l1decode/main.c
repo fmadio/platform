@@ -32,7 +32,7 @@
 static bool		s_IsPktPCAP			= true;					// input format is a PCAP
 static bool		s_IsPktFMAD			= false;				// input format is a FMAD Chunked 
 static bool		s_IsPrintXGMII		= true;					// by default print XGMII traffic
-static bool		s_IsPrintTimestamp	= false;				// by default don't print timestamp
+static bool		s_IsPrintTimestamp	= true;				// by default don't print timestamp
 static bool		s_IsPrintDebug		= false;				// by default don't print debug
 
 static u64 		s_TScale 			= 0;					// timescale of the pcap
@@ -298,14 +298,20 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 			if (s_IsPrintXGMII)
 			{
+				// picosec timestamp (if present)
+				u8 TimestampStr[1024] = {0};
 				if (s_IsPrintTimestamp & PktHasTimestamp)
 				{
-
 					u8 TnsStr[128];
 					ns2str(TnsStr, *T_ns); 
 
-					printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x : %s.%u \n", 
+					sprintf(TimestampStr, " TS %s.%u", TnsStr, *T_frac);
 
+					T_ns += 1;
+					T_frac += 1;
+				}
+
+				printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x : %s\n", 
 							HeaderStr,
 							w,
 
@@ -324,36 +330,8 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 							D8[6],
 							D8[7],
 
-							TnsStr,
-							*T_frac
-
-					);
-
-					T_ns += 1;
-					T_frac += 1;
-				}
-				else {
-					printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x\n", 
-
-							HeaderStr,
-							w,
-
-							Header->lane_no,
-							sof,
-							eof,
-
-							bitswap8(C8[0]),
-
-							D8[0],
-							D8[1],
-							D8[2],
-							D8[3],
-							D8[4],
-							D8[5],
-							D8[6],
-							D8[7]
-					);
-				}
+							TimestampStr
+				);
 			}
 			C8 += 1;
 			D8 += 8;
@@ -388,7 +366,7 @@ static void PrintHelp(void)
 		"\n"
 		"  --port                      : output data from a given port\n"
 		"  --disable-xgmii             : disable xgmii printout\n"
-		"  --enable-timestamp          : enable timestamp printout\n"
+		"  --disable-timestamp         : disable timestamp printout (default enable)\n"
 		"  --enable-debug              : enable debug printout\n"
 		"  --help                      : print this message and then exit\n"
 		"  --version, -V               : print the program's version information and then exit\n"
@@ -456,10 +434,10 @@ int main(int argc, char* argv[])
 			s_IsPrintXGMII = false;
 			fprintf(stderr, "Disable XGMII Printout\n");
 		}
-		else if (strcmp(argv[i], "--enable-timestamp") == 0)
+		else if (strcmp(argv[i], "--disable-timestamp") == 0)
 		{
-			s_IsPrintTimestamp = true;
-			fprintf(stderr, "Enable Timestamp Printout\n");
+			s_IsPrintTimestamp = false;
+			fprintf(stderr, "Disable Timestamp Printout\n");
 		}
 		else if (strcmp(argv[i], "--enable-debug") == 0)
 		{
