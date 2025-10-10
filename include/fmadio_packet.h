@@ -459,6 +459,7 @@ static inline int FMADPacket_RecvV1a(	fFMADRingHeader_t* RING,
 										) 
 {
 	fFMADRingPacket_t* Pkt = NULL;
+	u32 Backoff = 0;
 	do 
 	{
 		if (RING->Put != RING->Get)
@@ -468,8 +469,16 @@ static inline int FMADPacket_RecvV1a(	fFMADRingHeader_t* RING,
 			Pkt = &RING->Packet[ RING->Get & RING->Mask ]; 
 			break;
 		}
-		//usleep(0);
+
 		ndelay(100);
+		Backoff++;
+
+		// yeild the thread after a trying hard for a bit 
+		if (Backoff > 100)
+		{
+			Backoff = 0;
+			usleep(0);
+		}
 
 	} while (IsWait);
 
