@@ -186,8 +186,15 @@ typedef struct
 
 static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 {
-	fL1Header_t* Header = (fL1Header_t*)(Payload);
+	//fL1Header_t* Header = (fL1Header_t*)(Payload);
 
+	// reset the full payload, as the CaputreLength might be
+	// (incorrectly) sliced. this makes it clear there is data missing
+	u8 Payload2[8*1024];
+	memset(Payload2, 0, sizeof(Payload2));
+	memcpy(Payload2, Payload, Length);
+
+	fL1Header_t* Header = (fL1Header_t*)Payload2;
 
 	u8 HeaderStr[128];
 	ns2str(HeaderStr, TS); 
