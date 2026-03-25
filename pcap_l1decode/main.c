@@ -226,6 +226,12 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 	// Check if the packet is a timestamp-type packet
 	bool PktHasTimestamp = (Header->lock_status >> 3) & 0x1;
 	bool PktHasDebug     = (Header->lock_status >> 4) & 0x1;
+	bool PktIs100G       = (Header->lock_status >> 5) & 0x1;
+	bool PktIs25G        = !PktIs100G;
+
+	// 100G packet contains 192 words (48xCGMII)
+	// 10/25G packet contains 64 words (64xXGMII)
+	int NumWords 		 = (PktIs100G) ? 192 : 64;
 
 	if (g_Verbose) printf("%s cap%i SeqNo:%016llx CompressCnt:%8i CompressWord:%08x PktHasTimestamp:%d Timestamp:%s.%u Underflow:%4i Overflow:%4i FIFOError:%08x Gaps:%lli %s\n", 
 										HeaderStr,
@@ -274,20 +280,21 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 			}
 		}
 
-		// ctrl is 64 words @ 8 bits
-		// data is 64 words @ 64 bits
+		// ctrl is NumWords words @ 8 bits
+		// data is NumWords words @ 64 bits
 		u8* C8 = (u8*)(Header + 1);
-		u8* D8 = (u8*)(C8     + 64);
+		u8* D8 = (u8*)(C8     + NumWords);
 
-		// timestamp 1 is 64 words @ 64 bits (ns)
-		// timestamp 2 is 64 words @ 16 bits (fractional)
+		// 100G timestamp is only incremented every 4th word due to CGMII being 4x wider than XGMII
+		// timestamp 1 is 48 (100G) or 64 (25G) words @ 64 bits (ns)
+		// timestamp 2 is 48 (100G) or 64 (25G) words @ 16 bits (fractional)
 		// debug is 8 words @ 64 bits (ns)
-		u64* T_ns   = (u64*)(D8	  + 512);
+		u64* T_ns   = (u64*)(D8	  + NumWords*8);
 		u16* T_frac = (u16*)(T_ns + 64);
 		u64* Debug  = (u64*)(T_frac + 64);
 		
 
-		for (int w=0; w < 64; w++)
+		for (int w=0; w < NumWords; w++)
 		{
 			u8* sof = " ";
 			u8* eof = " ";
@@ -314,8 +321,13 @@ static void ProcessPacket(u8* Payload, u32 Length, u64 TS, u32 Flag)
 
 					sprintf(TimestampStr, " TS %s.%u", TnsStr, *T_frac);
 
-					T_ns += 1;
-					T_frac += 1;
+					// 100G increment the timestamp every 4 words
+					// 10/25G increment every word
+					if ((PktIs100G && (w % 4 == 3)) || PktIs25G )
+					{
+						T_ns += 1;
+						T_frac += 1;
+					}
 				}
 
 				printf("%s %3i : cap%i %s %s %02x %02x%02x%02x%02x%02x%02x%02x%02x : %s\n", 
