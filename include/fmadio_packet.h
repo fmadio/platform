@@ -119,7 +119,7 @@ typedef struct fFMADRingHeader_t
 	u32				Size;							// size of entire structure 
 	u32				SizePacket;						// size of a packet 
 
-	u8				Path[128];						// path of ring
+	char			Path[128];						// path of ring
 		
 	u64				Depth;							// depth of the ring 
 	u64				Mask;							// counter mask 
@@ -154,7 +154,7 @@ typedef struct fFMADRingHeader_t
 static inline int FMADPacket_OpenTx(	int* 				pfd, 
 										fFMADRingHeader_t** pRing, 
 										bool 				IsReset, 
-										u8* 				Path,
+										const char* 		Path,
 										bool				IsFlowControl,
 										u64					TimeoutNS
 ){
@@ -188,7 +188,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 	}
 
 	// map it
-	u8* Map = mmap64(0, FMADRING_MAPSIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	u8* Map = (u8*)mmap64(0, FMADRING_MAPSIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (Map == (u8*)-1)
 	{
 		fprintf(stderr, "RING[%-50s]failed to map RING\n", Path);
@@ -257,7 +257,7 @@ static inline int FMADPacket_OpenTx(	int* 				pfd,
 static inline int FMADPacket_OpenRx(	int* 				pfd, 
 										fFMADRingHeader_t** pRing, 
 										bool 				IsWait, 
-										u8* 				Path
+										const char*			Path
 ){
 	int fd = 0;	
 
@@ -269,7 +269,7 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 	}
 
 	// map it
-	u8* Map = mmap64(0, FMADRING_MAPSIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	u8* Map = (u8*)mmap64(0, FMADRING_MAPSIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (Map == (u8*)-1)
 	{
 		fprintf(stderr, "RING[%-50s] failed to map RING\n", Path);
@@ -313,7 +313,7 @@ static inline int FMADPacket_OpenRx(	int* 				pfd,
 // open fmad packet ring for monitoring only (read only) 
 static inline int FMADPacket_OpenMon(	int* 				pfd, 
 										fFMADRingHeader_t** pRing, 
-										u8* 				Path
+										const char* 		Path
 ){
 	int fd = 0;	
 
@@ -325,7 +325,7 @@ static inline int FMADPacket_OpenMon(	int* 				pfd,
 	}
 
 	// map it
-	u8* Map = mmap64(0, FMADRING_MAPSIZE, PROT_READ, MAP_SHARED, fd, 0);
+	u8* Map = (u8*)mmap64(0, FMADRING_MAPSIZE, PROT_READ, MAP_SHARED, fd, 0);
 	if (Map == (u8*)-1)
 	{
 		fprintf(stderr, "RING[%-50s] ERROR failed to map RING (read only)\n", Path);
