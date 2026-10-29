@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/shm.h>
+#include <sys/time.h>
 
 #include "include/fmadio_packet.h"
 
@@ -40,6 +41,38 @@ static u16 swap16(const u16 a)
 	return (((a>>8)&0xFF)<<0) | (((a>>0)&0xFF)<<8);
 }
 
+// epoch in nanos in GMT timezone 
+static u64 clock_ns(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	return (u64)tv.tv_sec *(u64)1e9 +(u64)tv.tv_usec * (u64)1e3;
+}
+
+static char* FormatTS(u64 ts)
+{
+	u64 usec = ts / 1000ULL;
+	u64 msec = usec / 1000ULL;
+	u64 sec = msec / 1000ULL;
+	u64 min = sec / 60ULL;
+	u64 hour = min / 60ULL;
+
+	u64 nsec = ts - usec*1000ULL;
+	usec = usec - msec*1000ULL;
+	msec = msec - sec*1000ULL;
+	sec = sec - min*60ULL;
+	min = min - hour*60ULL;
+
+	static char List[16][128];
+	static int Pos = 0;
+
+	char* S = List[Pos];
+	Pos = (Pos + 1) & 0xf;
+
+	sprintf(S, "%02lli:%02lli:%02lli.%03lli.%03lli.%03lli", hour % 24, min, sec, msec,usec, nsec);
+	return S;
+}
 
 //------------------------------------------------------------------------------
 
